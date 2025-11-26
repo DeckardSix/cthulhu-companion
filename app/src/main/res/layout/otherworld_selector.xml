@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent">
+    <ListView 
+        android:id="@+id/locationListView" 
+        android:layout_width="match_parent" 
+        android:layout_height="0dip"
+        android:choiceMode="multipleChoice"
+        android:layout_weight="1" />
+    <LinearLayout 
+        android:id="@+id/colorLinearLayout" 
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:baselineAligned="false">
+        <!-- Color pips can be added here if needed -->
+    </LinearLayout>
+    <RelativeLayout
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+        <Button 
+            android:id="@+id/open_neighborhoods" 
+            android:layout_height="100dp"
+            android:layout_width="100dp"
+            android:background="@drawable/btn_round"
+            android:layout_alignParentLeft="true"
+            android:onClick="openNeighborhood"
+            android:text="Neighborhood" />
+        <Button 
+            android:id="@+id/open_otherworld" 
+            android:layout_height="100dp"
+            android:layout_width="100dp"
+            android:background="@drawable/btn_round"
+            android:layout_centerInParent="true"
+            android:onClick="openOW"
+            android:text="Other World" />
+        <Button 
+            android:id="@+id/open_encounterhx" 
+            android:layout_height="100dp"
+            android:layout_width="100dp"
+            android:background="@drawable/btn_round"
+            android:layout_alignParentRight="true"
+            android:onClick="openEncHx"
+            android:text="History" />
+    </RelativeLayout>
+</LinearLayout>
+

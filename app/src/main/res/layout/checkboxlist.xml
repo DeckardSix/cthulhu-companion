@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent"
+  android:layout_height="wrap_content">
+    <CheckBox
+        android:id="@+id/number_entry"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="27sp"
+        android:textColor="@color/white"
+        android:textStyle="bold"
+        android:paddingLeft="60dp"
+        android:paddingRight="16dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:lineSpacingExtra="4dp"
+        android:maxLines="3"
+        android:ellipsize="end" />
+</LinearLayout>
+

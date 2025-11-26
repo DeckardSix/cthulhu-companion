@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    
+    <application
+        android:name=".CthulhuApplication"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.CthulhuCompanion"
+        android:allowBackup="true"
+        android:enableOnBackInvokedCallback="true"
+        tools:targetApi="31">
+        
+        <!-- Main Activity - Game Selection -->
+        <activity
+            android:name=".GUI.GameSelectionActivity"
+            android:exported="true"
+            android:theme="@style/Theme.CthulhuCompanion"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        
+        <!-- Database Management Activity -->
+        <activity
+            android:name=".GUI.DatabaseManagementActivity"
+            android:exported="false"
+            android:theme="@style/Theme.CthulhuCompanion"
+            android:screenOrientation="portrait"
+            android:label="Database Management" />
+        
+        <!-- Eldritch Horror Setup Activity -->
+        <activity
+            android:name=".eldritch.GUI.Setup"
+            android:exported="false"
+            android:theme="@style/Theme.CthulhuCompanion"
+            android:screenOrientation="unspecified"
+            android:label="Eldritch Horror Setup" />
+        
+        <!-- Eldritch Horror Main Game Activity -->
+        <activity
+            android:name=".eldritch.GUI.EldritchCompanion"
+            android:exported="false"
+            android:theme="@style/Theme.CthulhuCompanion"
+            android:launchMode="singleTop"
+            android:label="@string/title_activity_eldritch_companion" />
+        
+        <!-- Eldritch Horror Deck Gallery Activity -->
+        <activity
+            android:name=".eldritch.GUI.DeckGallery"
+            android:exported="false"
+            android:theme="@style/Theme.CthulhuCompanion"
+            android:label="@string/title_activity_pager"
+            android:parentActivityName=".eldritch.GUI.EldritchCompanion" />
+        
+        <!-- Eldritch Horror Discard Gallery Activity -->
+        <activity
+            android:name=".eldritch.GUI.DiscardGallery"
+            android:exported="false"
+            android:theme="@style/Theme.CthulhuCompanion"
+            android:label="@string/title_activity_pager"
+            android:parentActivityName=".eldritch.GUI.EldritchCompanion" />
+        
+        <!-- Eldritch Horror Remove Expedition Activity -->
+        <activity
+            android:name=".eldritch.GUI.RemoveExpedition"
+            android:exported="false"
+            android:theme="@style/Theme.CthulhuCompanion"
+            android:label="@string/title_activity_remove_expedition"
+            android:parentActivityName=".eldritch.GUI.EldritchCompanion" />
+        
+        <!-- Arkham Horror Expansion Selector Activity -->
+        <activity
+            android:name=".arkham.GUI.ExpansionSelector"
+            android:exported="false"
+            android:theme="@style/Theme.CthulhuCompanion"
+            android:screenOrientation="portrait"
+            android:label="Arkham Horror" />
+        
+        <!-- Arkham Horror Neighborhood Selector Activity -->
+        <activity
+            android:name=".arkham.GUI.NeighborhoodSelector"
+            android:exported="false"
+            android:theme="@style/Theme.CthulhuCompanion"
+            android:screenOrientation="portrait"
+            android:label="Neighborhood" />
+        
+        <!-- Arkham Horror Otherworld Selector Activity -->
+        <activity
+            android:name=".arkham.GUI.OtherworldSelector"
+            android:exported="false"
+            android:theme="@style/Theme.CthulhuCompanion"
+            android:screenOrientation="portrait"
+            android:label="Other World" />
+        
+        <!-- Arkham Horror Location Deck Activity -->
+        <activity
+            android:name=".arkham.GUI.LocationDeckActivity"
+            android:exported="false"
+            android:theme="@style/Theme.CthulhuCompanion"
+            android:screenOrientation="portrait"
+            android:label="Location Deck" />
+        
+        <!-- Arkham Horror Other World Deck Activity -->
+        <activity
+            android:name=".arkham.GUI.OtherWorldDeckActivity"
+            android:exported="false"
+            android:theme="@style/Theme.CthulhuCompanion"
+            android:screenOrientation="portrait"
+            android:label="Other World Deck" />
+        
+    </application>
+</manifest>
+

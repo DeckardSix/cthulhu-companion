@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Cthulhu Companion</string>
+    <string name="select_game">Select Game</string>
+    <string name="arkham_horror">Arkham Horror</string>
+    <string name="eldritch_horror">Eldritch Horror</string>
+    <string name="coming_soon">Coming Soon</string>
+    
+    <!-- Eldritch Horror strings -->
+    <string name="title_activity_eldritch_companion">Eldritch Companion</string>
+    <string name="title_activity_gallery">Gallery</string>
+    <string name="title_activity_pager">Pager</string>
+    <string name="title_activity_remove_expedition">Remove Expedition</string>
+    <string name="title_activity_three_part_card">Region</string>
+    <string name="deck_menu_discard_card">Discard Card</string>
+    <string name="deck_menu_shuffle_deck">Shuffle Deck</string>
+    <string name="discard_menu_remove_card">Remove Card</string>
+    <string name="main_menu_end_game">End Game</string>
+    
+    <!-- Arkham Horror strings -->
+    <string name="arkham_horror_logo">Arkham Horror Logo</string>
+    <string name="new_game">New Game</string>
+    <string name="about_app">About</string>
+    <string name="shuffle">Shuffle</string>
+    <string name="encounter_arrow_clicked">Deck shuffled…</string>
+    <string name="otherword_arrow_clicked_true">Deck shuffled…</string>
+    <string name="otherword_arrow_clicked_false">Discarding cards…</string>
+    <string name="location_deck_back">No Encounter selected.\n Deck not shuffled.\n Replacing cards…</string>
+    
+    <!-- Additional Eldritch strings -->
+    <string name="base">Base</string>
+    <string name="forsaken_lore">Forsaken Lore</string>
+    <string name="select_expansions">Select Expansions</string>
+    <string name="america">America</string>
+    <string name="uk">UK</string>
+    <string name="city_of_the_elder_things">City of the Elder Things</string>
+    <string name="frozen_waste">Frozen Waste</string>
+    <string name="africa">Africa</string>
+    <string name="dreamland_s">Dreamland\'s</string>
+    <string name="city_wilderness">City/Wilderness</string>
+    <string name="gate">Gate</string>
+</resources>
+

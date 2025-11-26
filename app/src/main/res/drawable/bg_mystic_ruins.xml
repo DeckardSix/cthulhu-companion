@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Neighbourhood background image -->
+    <item>
+        <bitmap 
+            android:src="@drawable/neighbourhood"
+            android:scaleType="fitXY"/>
+    </item>
+    <!-- Semi-transparent color overlay -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#801d00f2"/>
+        </shape>
+    </item>
+</layer-list> 

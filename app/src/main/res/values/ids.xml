@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Menu action IDs -->
+    <item name="action_shuffle_deck" type="id"/>
+    <item name="action_discard_card" type="id"/>
+    <item name="action_remove_card" type="id"/>
+    <item name="action_end_game" type="id"/>
+</resources>
+

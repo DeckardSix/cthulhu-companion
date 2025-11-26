@@ -15,7 +15,50 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:baselineAligned="false">
-        <!-- Color pips can be added here if needed -->
+        <LinearLayout 
+            android:layout_width="0dp" 
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center">
+            <CheckBox 
+                android:id="@+id/red_pip" 
+                android:button="@drawable/checkbox_redpips"
+                android:layout_height="40dp"
+                android:layout_width="40dp"/>
+        </LinearLayout>
+        <LinearLayout 
+            android:layout_width="0dp" 
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center">
+            <CheckBox 
+                android:id="@+id/blue_pip" 
+                android:button="@drawable/checkbox_bluepips"
+                android:layout_height="40dp"
+                android:layout_width="40dp"/>
+        </LinearLayout>
+        <LinearLayout 
+            android:layout_width="0dp" 
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center">
+            <CheckBox 
+                android:id="@+id/yellow_pip" 
+                android:button="@drawable/checkbox_yellowpips"
+                android:layout_height="40dp"
+                android:layout_width="40dp"/>
+        </LinearLayout>
+        <LinearLayout 
+            android:layout_width="0dp" 
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center">
+            <CheckBox 
+                android:id="@+id/green_pip" 
+                android:button="@drawable/checkbox_greenpips"
+                android:layout_height="40dp"
+                android:layout_width="40dp"/>
+        </LinearLayout>
     </LinearLayout>
     <RelativeLayout
         android:layout_width="fill_parent"
@@ -25,26 +68,23 @@
             android:id="@+id/open_neighborhoods" 
             android:layout_height="100dp"
             android:layout_width="100dp"
-            android:background="@drawable/btn_round"
+            android:background="@drawable/ae_btn"
             android:layout_alignParentLeft="true"
-            android:onClick="openNeighborhood"
-            android:text="Neighborhood" />
+            android:onClick="openNeighborhood" />
         <Button 
             android:id="@+id/open_otherworld" 
             android:layout_height="100dp"
             android:layout_width="100dp"
-            android:background="@drawable/btn_round"
+            android:background="@drawable/ow_btn"
             android:layout_centerInParent="true"
-            android:onClick="openOW"
-            android:text="Other World" />
+            android:onClick="openOW" />
         <Button 
             android:id="@+id/open_encounterhx" 
             android:layout_height="100dp"
             android:layout_width="100dp"
-            android:background="@drawable/btn_round"
+            android:background="@drawable/history_back"
             android:layout_alignParentRight="true"
-            android:onClick="openEncHx"
-            android:text="History" />
+            android:onClick="openEncHx" />
     </RelativeLayout>
 </LinearLayout>
 

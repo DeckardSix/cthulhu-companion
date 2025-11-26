@@ -256,6 +256,97 @@ class AHFlyweightFactoryAdapter private constructor(context: Context) {
     }
     
     /**
+     * Get current otherworld locations (compatible with AHFlyweightFactory.getCurrentOtherWorldLocations())
+     * Returns locations without neighborhoods, filtered by enabled expansions
+     */
+    fun getCurrentOtherWorldLocations(): List<LocationAdapter> {
+        return runBlocking {
+            withContext(Dispatchers.IO) {
+                val db = UnifiedCardDatabaseHelper.getInstance(appContext)
+                val enabledExpansions = gameState.getSelectedExpansions(GameType.ARKHAM)
+                
+                // Map expansion names to IDs
+                val expansionIds = mutableListOf<Long>()
+                for (expansionName in enabledExpansions) {
+                    val expId = getExpansionIdByName(expansionName)
+                    if (expId > 0) {
+                        expansionIds.add(expId)
+                    }
+                }
+                
+                // Always include base game (ID 1)
+                if (!expansionIds.contains(1L)) {
+                    expansionIds.add(1L)
+                }
+                
+                // Get otherworld locations filtered by enabled expansions
+                // Base game (ID 1) is always included, and locations 499 and 500 are excluded
+                val locations = db.getOtherWorldLocations(expansionIds, listOf(499L, 500L))
+                
+                android.util.Log.d("AHFlyweightFactoryAdapter", "Found ${locations.size} otherworld locations for expansions: $expansionIds")
+                
+                locations.map { loc ->
+                    LocationAdapter(
+                        loc.id,
+                        loc.name,
+                        loc.buttonPath,
+                        getOtherWorldColorsFunc = { getOtherWorldColors(loc.id) }
+                    )
+                }
+            }
+        }
+    }
+    
+    /**
+     * Get otherworld colors for a location (compatible with AHFlyweightFactory.getOtherWorldColors())
+     */
+    fun getOtherWorldColors(locID: Long): List<OtherWorldColorAdapter> {
+        return runBlocking {
+            try {
+                val db = UnifiedCardDatabaseHelper.getInstance(appContext)
+                val colors = db.getColorsForLocation(locID)
+                colors.map { colorData ->
+                    OtherWorldColorAdapter(
+                        id = colorData.id,
+                        name = colorData.name,
+                        buttonPath = colorData.buttonPath,
+                        expId = colorData.expId
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e("AHFlyweightFactoryAdapter", "Error getting colors for location $locID: ${e.message}", e)
+                emptyList()
+            }
+        }
+    }
+    
+    /**
+     * Get current otherworld colors (compatible with AHFlyweightFactory.getCurrentOtherWorldColors())
+     */
+    fun getCurrentOtherWorldColors(): List<OtherWorldColorAdapter> {
+        return runBlocking {
+            try {
+                val db = UnifiedCardDatabaseHelper.getInstance(appContext)
+                // Get applied expansion IDs
+                val gameState = GameStateAdapter.getInstance(appContext)
+                val expIds = gameState.getAppliedExpansions().toList()
+                val colors = db.getCurrentOtherWorldColors(if (expIds.isNotEmpty()) expIds else listOf(1L))
+                colors.map { colorData ->
+                    OtherWorldColorAdapter(
+                        id = colorData.id,
+                        name = colorData.name,
+                        buttonPath = colorData.buttonPath,
+                        expId = colorData.expId
+                    )
+                }
+            } catch (e: Exception) {
+                Log.e("AHFlyweightFactoryAdapter", "Error getting current colors: ${e.message}", e)
+                emptyList()
+            }
+        }
+    }
+    
+    /**
      * Get encounters for a card (compatible with AHFlyweightFactory.getEncountersForCard())
      */
     fun getEncountersForCard(cardID: Long): List<EncounterAdapter> {
@@ -294,12 +385,32 @@ class AHFlyweightFactoryAdapter private constructor(context: Context) {
 class LocationAdapter(
     private val id: Long,
     private val name: String,
-    private val buttonPath: String? = null
+    private val buttonPath: String? = null,
+    private val getOtherWorldColorsFunc: (() -> List<OtherWorldColorAdapter>)? = null
 ) {
     fun getID(): Long = id
     fun getLocationName(): String = name
     fun getButtonPath(): String? = buttonPath
     fun getEncounters(): List<EncounterAdapter> = emptyList() // TODO: Implement
+    fun getOtherWorldColors(): List<OtherWorldColorAdapter> {
+        return getOtherWorldColorsFunc?.invoke() ?: emptyList()
+    }
+    override fun toString(): String = name
+}
+
+/**
+ * Compatibility adapter for OtherWorldColor class
+ */
+class OtherWorldColorAdapter(
+    private val id: Long,
+    private val name: String,
+    private val buttonPath: String? = null,
+    private val expId: Long = 1L
+) {
+    fun getID(): Long = id
+    fun getName(): String = name
+    fun getButtonPath(): String? = buttonPath
+    fun getExpID(): Long = expId
     override fun toString(): String = name
 }
 

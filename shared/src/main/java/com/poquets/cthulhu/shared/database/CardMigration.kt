@@ -445,6 +445,93 @@ object CardMigration {
     }
     
     /**
+     * Migrate colors and location-to-color mappings from Arkham database
+     */
+    private fun migrateArkhamColors(
+        arkhamDb: SQLiteDatabase,
+        unifiedDb: UnifiedCardDatabaseHelper
+    ) {
+        try {
+            // Get expansion info for mapping
+            val expCursor = arkhamDb.rawQuery(
+                "SELECT expID, expName, expIconPath FROM Expansion",
+                null
+            )
+            val expansionMap = mutableMapOf<Long, Pair<String, String?>>()
+            expCursor.use {
+                val idIndex = it.getColumnIndexOrThrow("expID")
+                val nameIndex = it.getColumnIndexOrThrow("expName")
+                val iconPathIndex = it.getColumnIndex("expIconPath")
+                
+                while (it.moveToNext()) {
+                    val expId = it.getLong(idIndex)
+                    val expName = it.getString(nameIndex)
+                    val iconPath = it.getStringOrNull(iconPathIndex)
+                    expansionMap[expId] = Pair(expName, iconPath)
+                }
+            }
+            
+            // Migrate colors
+            val colorCursor = arkhamDb.rawQuery(
+                "SELECT colorID, colorExpID, colorName, colorButtonPath FROM Color",
+                null
+            )
+            
+            var colorCount = 0
+            colorCursor.use {
+                val idIndex = it.getColumnIndexOrThrow("colorID")
+                val expIdIndex = it.getColumnIndexOrThrow("colorExpID")
+                val nameIndex = it.getColumnIndexOrThrow("colorName")
+                val buttonPathIndex = it.getColumnIndex("colorButtonPath")
+                
+                while (it.moveToNext()) {
+                    val colorId = it.getLong(idIndex)
+                    val expId = it.getLong(expIdIndex)
+                    val name = it.getString(nameIndex)
+                    val buttonPath = it.getStringOrNull(buttonPathIndex)
+                    
+                    val unifiedExpId = expansionMap[expId]?.let { (expName, iconPath) ->
+                        val normalizedExpName = if (expName.equals("Base", ignoreCase = true)) "BASE" else expName
+                        unifiedDb.getOrCreateExpansion(GameType.ARKHAM, expId.toString(), normalizedExpName, iconPath)
+                    } ?: 1L // Default to base game if expansion not found
+                    
+                    if (unifiedExpId > 0) {
+                        unifiedDb.insertColor(colorId, unifiedExpId, name, buttonPath)
+                        colorCount++
+                    }
+                }
+            }
+            
+            Log.d(TAG, "Migrated $colorCount colors")
+            
+            // Migrate location-to-color mappings
+            val locToColorCursor = arkhamDb.rawQuery(
+                "SELECT locToColorLocID, locToColorColorID FROM LocationToColor",
+                null
+            )
+            
+            var mappingCount = 0
+            locToColorCursor.use {
+                val locIdIndex = it.getColumnIndexOrThrow("locToColorLocID")
+                val colorIdIndex = it.getColumnIndexOrThrow("locToColorColorID")
+                
+                while (it.moveToNext()) {
+                    val locId = it.getLong(locIdIndex)
+                    val colorId = it.getLong(colorIdIndex)
+                    
+                    unifiedDb.linkLocationToColor(locId, colorId)
+                    mappingCount++
+                }
+            }
+            
+            Log.d(TAG, "Migrated $mappingCount location-to-color mappings")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error migrating colors: ${e.message}", e)
+            e.printStackTrace()
+        }
+    }
+    
+    /**
      * Migrate encounters from Arkham database
      */
     private fun migrateArkhamEncounters(
@@ -1094,6 +1181,9 @@ object CardMigration {
             
             // Then, migrate encounters
             migrateArkhamEncounters(tempDb, unifiedDb)
+            
+            // Migrate colors and location-to-color mappings
+            migrateArkhamColors(tempDb, unifiedDb)
             
             // Finally, migrate cards (reuse existing logic)
             Log.d(TAG, "Querying cards from temporary database...")

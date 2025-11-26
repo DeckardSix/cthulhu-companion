@@ -26,6 +26,9 @@ class GameStateAdapter private constructor(context: Context) {
     private var otherWorldCards: MutableList<OtherWorldCardAdapter>? = null
     private val rand = Random(System.currentTimeMillis())
     
+    // Store selected otherworld colors
+    private val currentColors = mutableMapOf<Long, OtherWorldColorAdapter>()
+    
     companion object {
         @Volatile
         private var INSTANCE: GameStateAdapter? = null
@@ -216,23 +219,27 @@ class GameStateAdapter private constructor(context: Context) {
      * Add selected other world color (compatible with GameState.addSelectedOtherWorldColor())
      */
     fun addSelectedOtherWorldColor(color: OtherWorldColorAdapter) {
-        // TODO: Store in game state
-        Log.d("GameStateAdapter", "Added other world color: ${color.getName()}")
+        if (!currentColors.containsKey(color.getID())) {
+            currentColors[color.getID()] = color
+            Log.d("GameStateAdapter", "Added other world color: ${color.getName()}")
+        }
     }
     
     /**
      * Remove selected other world color (compatible with GameState.removeSelectedOtherWorldColor())
      */
     fun removeSelectedOtherWorldColor(color: OtherWorldColorAdapter) {
-        // TODO: Remove from game state
-        Log.d("GameStateAdapter", "Removed other world color: ${color.getName()}")
+        if (currentColors.containsKey(color.getID())) {
+            currentColors.remove(color.getID())
+            Log.d("GameStateAdapter", "Removed other world color: ${color.getName()}")
+        }
     }
     
     /**
      * Clear selected other world colors (compatible with GameState.clearSelectedOtherWorldColor())
      */
     fun clearSelectedOtherWorldColor() {
-        // TODO: Clear from game state
+        currentColors.clear()
         Log.d("GameStateAdapter", "Cleared other world colors")
     }
     
@@ -240,8 +247,7 @@ class GameStateAdapter private constructor(context: Context) {
      * Check if other world color is selected (compatible with GameState.isSelectedOtherWorldColor())
      */
     fun isSelectedOtherWorldColor(color: OtherWorldColorAdapter): Boolean {
-        // TODO: Check game state
-        return false
+        return currentColors.containsKey(color.getID())
     }
     
     /**

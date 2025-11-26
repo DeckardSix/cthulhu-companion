@@ -24,7 +24,8 @@ data class LocationData(
     val id: Long,
     val name: String,
     val buttonPath: String? = null,
-    val sort: Int = 0
+    val sort: Int = 0,
+    val expId: Long? = null
 )
 
 data class EncounterData(
@@ -47,7 +48,7 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
     companion object {
         private const val TAG = "UnifiedCardDB"
         private const val DATABASE_NAME = "cthulhu_companion.db"
-        private const val DATABASE_VERSION = 2
+        private const val DATABASE_VERSION = 3
         
         // Singleton instance
         @Volatile
@@ -180,6 +181,17 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
     private val COLUMN_CTE_CARD_ID = "cte_card_id"
     private val COLUMN_CTE_ENC_ID = "cte_enc_id"
     
+    // Arkham Other World Color tables
+    private val TABLE_COLORS = "colors"
+    private val COLUMN_COLOR_ID = "color_id"
+    private val COLUMN_COLOR_NAME = "color_name"
+    private val COLUMN_COLOR_BUTTON_PATH = "color_button_path"
+    private val COLUMN_COLOR_EXP_ID = "color_exp_id"
+    
+    private val TABLE_LOCATION_TO_COLOR = "location_to_color"
+    private val COLUMN_LTC_LOC_ID = "ltc_loc_id"
+    private val COLUMN_LTC_COLOR_ID = "ltc_color_id"
+    
     // Create tables SQL
     private val CREATE_TABLE_EXPANSIONS = """
         CREATE TABLE $TABLE_EXPANSIONS (
@@ -272,6 +284,26 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
         CREATE INDEX idx_region ON $TABLE_CARDS($COLUMN_REGION)
     """.trimIndent()
     
+    private val CREATE_TABLE_COLORS = """
+        CREATE TABLE IF NOT EXISTS $TABLE_COLORS (
+            $COLUMN_COLOR_ID INTEGER PRIMARY KEY,
+            $COLUMN_COLOR_EXP_ID INTEGER NOT NULL,
+            $COLUMN_COLOR_NAME TEXT NOT NULL,
+            $COLUMN_COLOR_BUTTON_PATH TEXT,
+            FOREIGN KEY ($COLUMN_COLOR_EXP_ID) REFERENCES $TABLE_EXPANSIONS($COLUMN_EXP_ID)
+        )
+    """.trimIndent()
+    
+    private val CREATE_TABLE_LOCATION_TO_COLOR = """
+        CREATE TABLE IF NOT EXISTS $TABLE_LOCATION_TO_COLOR (
+            $COLUMN_LTC_LOC_ID INTEGER NOT NULL,
+            $COLUMN_LTC_COLOR_ID INTEGER NOT NULL,
+            PRIMARY KEY ($COLUMN_LTC_LOC_ID, $COLUMN_LTC_COLOR_ID),
+            FOREIGN KEY ($COLUMN_LTC_LOC_ID) REFERENCES $TABLE_LOCATIONS($COLUMN_LOC_ID),
+            FOREIGN KEY ($COLUMN_LTC_COLOR_ID) REFERENCES $TABLE_COLORS($COLUMN_COLOR_ID)
+        )
+    """.trimIndent()
+    
     override fun onCreate(db: SQLiteDatabase) {
         Log.d(TAG, "Creating unified database tables")
         db.execSQL(CREATE_TABLE_EXPANSIONS)
@@ -280,6 +312,8 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
         db.execSQL(CREATE_TABLE_LOCATIONS)
         db.execSQL(CREATE_TABLE_ENCOUNTERS)
         db.execSQL(CREATE_TABLE_CARD_TO_ENCOUNTER)
+        db.execSQL(CREATE_TABLE_COLORS)
+        db.execSQL(CREATE_TABLE_LOCATION_TO_COLOR)
         db.execSQL(CREATE_INDEX_GAME_TYPE)
         db.execSQL(CREATE_INDEX_EXPANSION)
         db.execSQL(CREATE_INDEX_REGION)
@@ -296,6 +330,12 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
             db.execSQL(CREATE_TABLE_LOCATIONS)
             db.execSQL(CREATE_TABLE_ENCOUNTERS)
             db.execSQL(CREATE_TABLE_CARD_TO_ENCOUNTER)
+        }
+        if (oldVersion < 3) {
+            // Add color tables
+            Log.d(TAG, "Adding color tables (colors, location_to_color)")
+            db.execSQL(CREATE_TABLE_COLORS)
+            db.execSQL(CREATE_TABLE_LOCATION_TO_COLOR)
         }
     }
     
@@ -958,19 +998,46 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
     
     /**
      * Get other world locations (locations without neighborhood)
+     * @param expIds List of expansion IDs to filter by (base game ID 1 is always included)
+     * @param excludeIds List of location IDs to exclude (e.g., 499, 500)
      */
-    fun getOtherWorldLocations(expId: Long? = null): List<LocationData> {
+    fun getOtherWorldLocations(expIds: List<Long>? = null, excludeIds: List<Long> = listOf(499L, 500L)): List<LocationData> {
         rwLock.readLock().lock()
         try {
             val db = readableDatabase
-            val whereClause = "$COLUMN_NEI_ID IS NULL"
-            val whereArgs = if (expId != null) arrayOf(expId.toString()) else null
+            var whereClause = "$COLUMN_NEI_ID IS NULL"
+            val whereArgs = mutableListOf<String>()
+            
+            // Filter by expansion IDs (base game ID 1 is always included)
+            if (expIds != null && expIds.isNotEmpty()) {
+                // Remove 1 from the list if present (we'll handle it separately)
+                val nonBaseExpIds = expIds.filter { it != 1L }
+                if (nonBaseExpIds.isNotEmpty()) {
+                    val placeholders = nonBaseExpIds.joinToString(",") { "?" }
+                    // Show locations from selected expansions OR base game (ID 1)
+                    whereClause += " AND ($COLUMN_EXP_ID IN ($placeholders) OR $COLUMN_EXP_ID = 1)"
+                    whereArgs.addAll(nonBaseExpIds.map { it.toString() })
+                } else {
+                    // Only base game selected
+                    whereClause += " AND $COLUMN_EXP_ID = 1"
+                }
+            } else {
+                // If no expansions specified, only show base game
+                whereClause += " AND $COLUMN_EXP_ID = 1"
+            }
+            
+            // Exclude specific location IDs
+            if (excludeIds.isNotEmpty()) {
+                val excludePlaceholders = excludeIds.joinToString(",") { "?" }
+                whereClause += " AND $COLUMN_LOC_ID NOT IN ($excludePlaceholders)"
+                whereArgs.addAll(excludeIds.map { it.toString() })
+            }
             
             val cursor = db.query(
                 TABLE_LOCATIONS,
-                arrayOf(COLUMN_LOC_ID, COLUMN_LOC_NAME, COLUMN_LOC_BUTTON_PATH, COLUMN_LOC_SORT),
-                if (expId != null) "$whereClause AND $COLUMN_EXP_ID = ?" else whereClause,
-                whereArgs,
+                arrayOf(COLUMN_LOC_ID, COLUMN_LOC_NAME, COLUMN_LOC_BUTTON_PATH, COLUMN_LOC_SORT, COLUMN_EXP_ID),
+                whereClause,
+                if (whereArgs.isNotEmpty()) whereArgs.toTypedArray() else null,
                 null, null,
                 "$COLUMN_LOC_SORT ASC, $COLUMN_LOC_NAME ASC"
             )
@@ -981,6 +1048,7 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
                 val nameIndex = it.getColumnIndexOrThrow(COLUMN_LOC_NAME)
                 val buttonPathIndex = it.getColumnIndex(COLUMN_LOC_BUTTON_PATH)
                 val sortIndex = it.getColumnIndex(COLUMN_LOC_SORT)
+                val expIdIndex = it.getColumnIndex(COLUMN_EXP_ID)
                 
                 while (it.moveToNext()) {
                     locations.add(
@@ -988,7 +1056,8 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
                             id = it.getLong(idIndex),
                             name = it.getString(nameIndex),
                             buttonPath = it.getStringOrNull(buttonPathIndex),
-                            sort = it.getInt(sortIndex)
+                            sort = it.getInt(sortIndex),
+                            expId = it.getLongOrNull(expIdIndex)
                         )
                     )
                 }
@@ -1194,5 +1263,159 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
         return if (columnIndex >= 0 && !isNull(columnIndex)) {
             getLong(columnIndex)
         } else null
+    }
+    
+    /**
+     * Data class for Other World Color
+     */
+    data class OtherWorldColorData(
+        val id: Long,
+        val name: String,
+        val buttonPath: String? = null,
+        val expId: Long
+    )
+    
+    /**
+     * Get colors for a specific location
+     */
+    fun getColorsForLocation(locId: Long): List<OtherWorldColorData> {
+        rwLock.readLock().lock()
+        try {
+            val db = readableDatabase
+            
+            // First check if tables exist
+            val tableExists = try {
+                db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='$TABLE_COLORS'", null).use { it.count > 0 }
+            } catch (e: Exception) {
+                false
+            }
+            
+            if (!tableExists) {
+                Log.w(TAG, "Colors table does not exist yet for location $locId")
+                return emptyList()
+            }
+            
+            val query = """
+                SELECT c.$COLUMN_COLOR_ID, c.$COLUMN_COLOR_NAME, c.$COLUMN_COLOR_BUTTON_PATH, c.$COLUMN_COLOR_EXP_ID
+                FROM $TABLE_COLORS c
+                INNER JOIN $TABLE_LOCATION_TO_COLOR ltc ON c.$COLUMN_COLOR_ID = ltc.$COLUMN_LTC_COLOR_ID
+                WHERE ltc.$COLUMN_LTC_LOC_ID = ?
+                ORDER BY c.$COLUMN_COLOR_ID
+            """.trimIndent()
+            
+            val cursor = db.rawQuery(query, arrayOf(locId.toString()))
+            val colors = mutableListOf<OtherWorldColorData>()
+            cursor.use {
+                val idIndex = it.getColumnIndexOrThrow(COLUMN_COLOR_ID)
+                val nameIndex = it.getColumnIndexOrThrow(COLUMN_COLOR_NAME)
+                val buttonPathIndex = it.getColumnIndex(COLUMN_COLOR_BUTTON_PATH)
+                val expIdIndex = it.getColumnIndexOrThrow(COLUMN_COLOR_EXP_ID)
+                
+                while (it.moveToNext()) {
+                    colors.add(
+                        OtherWorldColorData(
+                            id = it.getLong(idIndex),
+                            name = it.getString(nameIndex),
+                            buttonPath = it.getStringOrNull(buttonPathIndex),
+                            expId = it.getLong(expIdIndex)
+                        )
+                    )
+                }
+            }
+            Log.d(TAG, "Found ${colors.size} colors for location $locId: ${colors.map { "${it.name}(ID=${it.id})" }}")
+            return colors
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting colors for location $locId: ${e.message}", e)
+            e.printStackTrace()
+            return emptyList()
+        } finally {
+            rwLock.readLock().unlock()
+        }
+    }
+    
+    /**
+     * Get all current colors (for selected expansions, including base game)
+     */
+    fun getCurrentOtherWorldColors(expIds: List<Long>? = null): List<OtherWorldColorData> {
+        rwLock.readLock().lock()
+        try {
+            val db = readableDatabase
+            val expIdList = expIds?.joinToString(",") ?: "1"
+            val query = """
+                SELECT $COLUMN_COLOR_ID, $COLUMN_COLOR_NAME, $COLUMN_COLOR_BUTTON_PATH, $COLUMN_COLOR_EXP_ID
+                FROM $TABLE_COLORS
+                WHERE ($COLUMN_COLOR_EXP_ID IN ($expIdList) OR $COLUMN_COLOR_EXP_ID = 1) 
+                AND $COLUMN_COLOR_ID <> 0
+                ORDER BY $COLUMN_COLOR_ID
+            """.trimIndent()
+            
+            val cursor = db.rawQuery(query, null)
+            val colors = mutableListOf<OtherWorldColorData>()
+            cursor.use {
+                val idIndex = it.getColumnIndexOrThrow(COLUMN_COLOR_ID)
+                val nameIndex = it.getColumnIndexOrThrow(COLUMN_COLOR_NAME)
+                val buttonPathIndex = it.getColumnIndex(COLUMN_COLOR_BUTTON_PATH)
+                val expIdIndex = it.getColumnIndexOrThrow(COLUMN_COLOR_EXP_ID)
+                
+                while (it.moveToNext()) {
+                    colors.add(
+                        OtherWorldColorData(
+                            id = it.getLong(idIndex),
+                            name = it.getString(nameIndex),
+                            buttonPath = it.getStringOrNull(buttonPathIndex),
+                            expId = it.getLong(expIdIndex)
+                        )
+                    )
+                }
+            }
+            return colors
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting current colors: ${e.message}", e)
+            return emptyList()
+        } finally {
+            rwLock.readLock().unlock()
+        }
+    }
+    
+    /**
+     * Insert a color
+     */
+    fun insertColor(colorId: Long, expId: Long, name: String, buttonPath: String? = null): Long {
+        rwLock.writeLock().lock()
+        try {
+            val db = writableDatabase
+            val values = android.content.ContentValues().apply {
+                put(COLUMN_COLOR_ID, colorId)
+                put(COLUMN_COLOR_EXP_ID, expId)
+                put(COLUMN_COLOR_NAME, name)
+                buttonPath?.let { put(COLUMN_COLOR_BUTTON_PATH, it) }
+            }
+            return db.insertWithOnConflict(TABLE_COLORS, null, values, SQLiteDatabase.CONFLICT_REPLACE)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error inserting color: ${e.message}", e)
+            return -1
+        } finally {
+            rwLock.writeLock().unlock()
+        }
+    }
+    
+    /**
+     * Link a location to a color
+     */
+    fun linkLocationToColor(locId: Long, colorId: Long): Long {
+        rwLock.writeLock().lock()
+        try {
+            val db = writableDatabase
+            val values = android.content.ContentValues().apply {
+                put(COLUMN_LTC_LOC_ID, locId)
+                put(COLUMN_LTC_COLOR_ID, colorId)
+            }
+            return db.insertWithOnConflict(TABLE_LOCATION_TO_COLOR, null, values, SQLiteDatabase.CONFLICT_REPLACE)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error linking location to color: ${e.message}", e)
+            return -1
+        } finally {
+            rwLock.writeLock().unlock()
+        }
     }
 }

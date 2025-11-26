@@ -1,9 +1,12 @@
 package com.poquets.cthulhu.arkham.GUI
 
 import android.content.Intent
-import android.graphics.Typeface
+import android.graphics.*
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.StateListDrawable
 import android.os.Bundle
 import android.util.Log
+import android.util.SparseArray
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
@@ -21,6 +24,7 @@ class OtherworldSelector : AppCompatActivity() {
     
     private lateinit var listView: ListView
     private val activityScope = CoroutineScope(Dispatchers.Main)
+    private val bmpCache = SparseArray<Bitmap>()
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -32,11 +36,13 @@ class OtherworldSelector : AppCompatActivity() {
         
         listView = findViewById(R.id.locationListView)
         
+        // Setup color checkboxes
+        setupColorCheckboxes()
+        
         // Get otherworld locations
         activityScope.launch {
-            // TODO: Get otherworld locations from unified database
-            // For now, use empty list
-            val locations = emptyList<LocationAdapter>()
+            val locations = AHFlyweightFactory.INSTANCE.getCurrentOtherWorldLocations()
+            android.util.Log.d("OtherworldSelector", "Found ${locations.size} otherworld locations")
             val cursor = LocationCursorAdapter(locations)
             
             // Create adapter
@@ -63,13 +69,61 @@ class OtherworldSelector : AppCompatActivity() {
                             Log.w("OtherworldSelector", "Font not found: ${e.message}")
                         }
                         
-                        // Set background
-                        button.setBackgroundResource(R.drawable.btn_round)
+                        // Set background with color overlay (matching original app)
+                        button.setBackgroundResource(R.drawable.otherworld_loc_btn_transparent)
+                        button.post {
+                            try {
+                                // Check if colors exist for this location
+                                val colors = location.getOtherWorldColors()
+                                Log.d("OtherworldSelector", "Location ${location.getLocationName()} (ID=${location.getID()}) has ${colors.size} colors: ${colors.map { "${it.getName()}(ID=${it.getID()})" }}")
+                                
+                                val bmp = if (bmpCache.get(location.getID().toInt(), null) != null) {
+                                    Log.d("OtherworldSelector", "Using cached bitmap for location ${location.getID()}")
+                                    bmpCache.get(location.getID().toInt())
+                                } else {
+                                    val baseBmp = if (bmpCache.get(-1, null) != null) {
+                                        bmpCache.get(-1)
+                                    } else {
+                                        val decoded = BitmapFactory.decodeResource(resources, R.drawable.otherworld_loc_btn)
+                                        if (decoded == null) {
+                                            Log.e("OtherworldSelector", "Failed to decode otherworld_loc_btn resource")
+                                        } else {
+                                            Log.d("OtherworldSelector", "Decoded base button image: ${decoded.width}x${decoded.height}")
+                                        }
+                                        bmpCache.append(-1, decoded)
+                                        decoded
+                                    }
+                                    if (baseBmp != null) {
+                                        Log.d("OtherworldSelector", "Calling overlayBtn for location ${location.getID()} with ${colors.size} colors")
+                                        overlayBtn(baseBmp, location, button)
+                                    } else {
+                                        null
+                                    }
+                                }
+                                if (bmp != null) {
+                                    Log.d("OtherworldSelector", "Setting button background with bitmap: ${bmp.width}x${bmp.height}")
+                                    button.background = BitmapDrawable(resources, bmp)
+                                } else {
+                                    Log.w("OtherworldSelector", "Bitmap is null, using fallback")
+                                    button.setBackgroundResource(R.drawable.otherworld_loc_btn)
+                                }
+                            } catch (e: Exception) {
+                                Log.e("OtherworldSelector", "Error loading button image: ${e.message}", e)
+                                e.printStackTrace()
+                                button.setBackgroundResource(R.drawable.otherworld_loc_btn)
+                            }
+                        }
                         
                         // Set click listener
                         button.setOnClickListener {
+                            val otherWorldColors = location.getOtherWorldColors()
                             // Clear selected colors
                             GameState.getInstance(applicationContext).clearSelectedOtherWorldColor()
+                            
+                            // Set selected colors based on location's colors
+                            for (color in otherWorldColors) {
+                                GameState.getInstance(applicationContext).addSelectedOtherWorldColor(color)
+                            }
                             
                             // Launch OtherWorldDeckActivity
                             val intent = Intent(this@OtherworldSelector, OtherWorldDeckActivity::class.java)
@@ -101,6 +155,132 @@ class OtherworldSelector : AppCompatActivity() {
     fun openOW(view: View) {
         // TODO: Launch OtherWorldDeckActivity
         Toast.makeText(this, "OtherWorldDeckActivity not yet implemented", Toast.LENGTH_SHORT).show()
+    }
+    
+    /**
+     * Setup color checkboxes at bottom (matching original app)
+     */
+    private fun setupColorCheckboxes() {
+        val colors = AHFlyweightFactory.INSTANCE.getCurrentOtherWorldColors()
+        val colorLayout = findViewById<LinearLayout>(R.id.colorLinearLayout)
+        
+        if (colorLayout == null) {
+            Log.w("OtherworldSelector", "colorLinearLayout not found")
+            return
+        }
+        
+        for (color in colors) {
+            val colorId = color.getID().toInt()
+            val checkbox = when (colorId) {
+                1 -> findViewById<CheckBox>(R.id.yellow_pip)
+                2 -> findViewById<CheckBox>(R.id.red_pip)
+                3 -> findViewById<CheckBox>(R.id.blue_pip)
+                4 -> findViewById<CheckBox>(R.id.green_pip)
+                else -> null
+            }
+            
+            if (checkbox != null) {
+                // Set initial checked state
+                colorLayout.post {
+                    checkbox.isChecked = GameState.getInstance(applicationContext).isSelectedOtherWorldColor(color)
+                }
+                
+                // Set click listener
+                checkbox.setOnClickListener {
+                    if (checkbox.isChecked) {
+                        GameState.getInstance(applicationContext).addSelectedOtherWorldColor(color)
+                    } else {
+                        GameState.getInstance(applicationContext).removeSelectedOtherWorldColor(color)
+                    }
+                }
+            }
+        }
+    }
+    
+    /**
+     * Overlay color pips on button (matching original app)
+     */
+    private fun overlayBtn(bmp1: Bitmap, loc: LocationAdapter, but: Button): Bitmap {
+        val widthDeform = but.width.toFloat() / bmp1.width
+        val heightDeform = but.height.toFloat() / bmp1.height
+        
+        val bmOverlay = Bitmap.createBitmap(bmp1.width, bmp1.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmOverlay)
+        canvas.drawBitmap(bmp1, 0f, 0f, null)
+        
+        var resizeToFitWidth = 166.0f / 225.0f
+        var resizeToFitHeight = 166.0f / 225.0f
+        
+        if (widthDeform > heightDeform) {
+            resizeToFitWidth = (resizeToFitWidth / widthDeform) * heightDeform
+        } else if (widthDeform < heightDeform) {
+            resizeToFitHeight = (resizeToFitHeight / heightDeform) * widthDeform
+        }
+        
+        val paint = Paint()
+        paint.isFilterBitmap = true
+        
+        val owcs = loc.getOtherWorldColors()
+        Log.d("OtherworldSelector", "Location ${loc.getLocationName()} has ${owcs.size} colors")
+        
+        // Position colors in corners: top-left, top-right, bottom-left, bottom-right
+        for (i in owcs.indices) {
+            if (i >= 4) break // Max 4 colors (one per corner)
+            
+            val mtx = Matrix()
+            mtx.setScale(resizeToFitWidth, resizeToFitHeight)
+            
+            var colorBmp: Bitmap? = null
+            val colorId = owcs[i].getID().toInt()
+            if (bmpCache.get(colorId + 100, null) != null) {
+                colorBmp = bmpCache.get(colorId + 100)
+            } else {
+                colorBmp = when (colorId) {
+                    1 -> BitmapFactory.decodeResource(resources, R.drawable.yellow_on)
+                    2 -> BitmapFactory.decodeResource(resources, R.drawable.red_on)
+                    3 -> BitmapFactory.decodeResource(resources, R.drawable.blue_on)
+                    4 -> BitmapFactory.decodeResource(resources, R.drawable.green_on)
+                    else -> null
+                }
+                if (colorBmp != null) {
+                    bmpCache.append(colorId + 100, colorBmp)
+                }
+            }
+            
+            if (colorBmp != null) {
+                val margin = 10
+                
+                // Calculate position based on corner (0=top-left, 1=top-right, 2=bottom-left, 3=bottom-right)
+                // Positions are in original bitmap coordinates, scaling is applied via the matrix
+                val (top, left) = when (i) {
+                    0 -> {
+                        // Top-left corner
+                        Pair(margin.toFloat(), margin.toFloat())
+                    }
+                    1 -> {
+                        // Top-right corner: position from right edge
+                        Pair(margin.toFloat(), (bmp1.width - colorBmp.width - margin).toFloat())
+                    }
+                    2 -> {
+                        // Bottom-left corner: position from bottom edge
+                        Pair((bmp1.height - colorBmp.height - margin).toFloat(), margin.toFloat())
+                    }
+                    3 -> {
+                        // Bottom-right corner: position from bottom-right
+                        Pair((bmp1.height - colorBmp.height - margin).toFloat(), (bmp1.width - colorBmp.width - margin).toFloat())
+                    }
+                    else -> Pair(0f, 0f)
+                }
+                
+                mtx.postTranslate(left, top)
+                canvas.drawBitmap(colorBmp, mtx, paint)
+                Log.d("OtherworldSelector", "Placed color ${owcs[i].getName()} (ID=${colorId}) at corner $i: top=$top, left=$left (button size: ${bmp1.width}x${bmp1.height}, color size: ${colorBmp.width}x${colorBmp.height}, resize: ${resizeToFitWidth}x${resizeToFitHeight})")
+            }
+        }
+        
+        val cachedBmp = bmOverlay.copy(bmOverlay.config ?: Bitmap.Config.ARGB_8888, false)
+        bmpCache.append(loc.getID().toInt(), cachedBmp)
+        return bmOverlay
     }
 }
 

@@ -83,19 +83,3 @@ class OtherWorldCardAdapter(
     
     fun getUnifiedCard(): UnifiedCard? = unifiedCard
 }
-
-/**
- * Compatibility adapter for OtherWorldColor class
- */
-class OtherWorldColorAdapter(
-    private val id: Long,
-    private val name: String,
-    private val buttonPath: String? = null,
-    private val expId: Long? = null
-) {
-    fun getID(): Long = id
-    fun getName(): String = name
-    fun getButtonPath(): String? = buttonPath
-    fun getExpID(): Long? = expId
-}
-

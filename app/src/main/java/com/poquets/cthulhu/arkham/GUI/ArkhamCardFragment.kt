@@ -117,29 +117,27 @@ class ArkhamCardFragment : Fragment() {
             
             // Extract/get neighborhood color or otherworld color
             val backgroundColor = if (isOtherWorld) {
-                // For otherworld cards, get color from selected otherworld colors
-                val gameState = GameState.getInstance(requireContext())
-                val selectedColors = gameState.getSelectedOtherWorldColors()
-                Log.d("ArkhamCardFragment", "Selected otherworld colors: ${selectedColors.size}")
+                // For otherworld cards, use the CARD's actual colors, not the location's selected colors
+                // This ensures that if a red card is selected, it shows red, and if a yellow card is selected, it shows yellow
+                val cardColors = otherWorldCard?.getOtherWorldColors() ?: emptyList()
+                Log.d("ArkhamCardFragment", "Card ${otherWorldCard?.getID()} has ${cardColors.size} colors: ${cardColors.map { "${it.getName()}(ID=${it.getID()})" }}")
                 
-                // Get the first selected color (or first color of the card if no selection)
-                val colorToUse = if (selectedColors.isNotEmpty()) {
-                    selectedColors[0]
-                } else {
-                    // Fallback to card's first color
-                    otherWorldCard?.getOtherWorldColors()?.firstOrNull()
-                }
+                // Get the first color of the card (cards typically have one primary color)
+                val colorToUse = cardColors.firstOrNull()
                 
                 if (colorToUse != null) {
                     // Map color ID to actual color value
-                    when (colorToUse.getID().toInt()) {
+                    val colorValue = when (colorToUse.getID().toInt()) {
                         1 -> android.graphics.Color.parseColor("#FFD700") // Yellow
                         2 -> android.graphics.Color.parseColor("#DC143C") // Red (Crimson)
                         3 -> android.graphics.Color.parseColor("#4169E1") // Blue (Royal Blue)
                         4 -> android.graphics.Color.parseColor("#228B22") // Green (Forest Green)
                         else -> android.graphics.Color.TRANSPARENT
                     }
+                    Log.d("ArkhamCardFragment", "Using card color: ${colorToUse.getName()} (ID=${colorToUse.getID()}) -> ${String.format("#%08X", colorValue)}")
+                    colorValue
                 } else {
+                    Log.w("ArkhamCardFragment", "Card has no colors, using transparent")
                     android.graphics.Color.TRANSPARENT
                 }
             } else if (neighborhood != null) {
@@ -208,6 +206,11 @@ class ArkhamCardFragment : Fragment() {
                                     FrameLayout.LayoutParams.MATCH_PARENT,
                                     FrameLayout.LayoutParams.MATCH_PARENT
                                 )
+                                // Make otherworld cards semi-transparent so color overlay shows through
+                                if (isOtherWorld) {
+                                    alpha = 0.5f // 50% opacity - color overlay will be visible
+                                    Log.d("ArkhamCardFragment", "Set otherworld card alpha to 0.5")
+                                }
                             }
                             // Insert at position 0 so it's behind the scroll view
                             frameLayout.addView(cardImageView, 0)
@@ -397,6 +400,11 @@ class ArkhamCardFragment : Fragment() {
                                         FrameLayout.LayoutParams.MATCH_PARENT,
                                         FrameLayout.LayoutParams.MATCH_PARENT
                                     )
+                                    // Make otherworld cards semi-transparent so color overlay shows through
+                                    if (isOtherWorld) {
+                                        alpha = 0.5f // 50% opacity - color overlay will be visible
+                                        Log.d("ArkhamCardFragment", "Set fallback otherworld card alpha to 0.5")
+                                    }
                                 }
                                 frameLayout.addView(cardImageView, 0)
                                 Log.d("ArkhamCardFragment", "Added fallback card image view")

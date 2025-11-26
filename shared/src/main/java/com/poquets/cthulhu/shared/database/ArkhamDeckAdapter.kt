@@ -26,10 +26,28 @@ class ArkhamDeckAdapter(private val context: Context) {
     
     /**
      * Get cards for a neighborhood
+     * Queries database directly to ensure cards are available even if decks haven't been initialized
      */
     suspend fun getNeighborhoodCards(neighborhoodId: Long): List<UnifiedCard> = withContext(Dispatchers.IO) {
+        // First try to get from initialized deck (for performance)
         val deckName = "neighborhood_$neighborhoodId"
-        deckManager.getDeck(deckName)
+        val deckCards = deckManager.getDeck(deckName)
+        
+        // If deck is initialized and has cards, return them
+        if (deckCards.isNotEmpty()) {
+            return@withContext deckCards
+        }
+        
+        // Otherwise, query directly from database
+        // This ensures cards are available even if decks haven't been initialized
+        Log.d("ArkhamDeckAdapter", "Deck not initialized for neighborhood $neighborhoodId, querying database directly")
+        val allCards = repository.getCards(GameType.ARKHAM)
+        Log.d("ArkhamDeckAdapter", "Found ${allCards.size} total Arkham cards in database")
+        val neighborhoodCards = allCards
+            .filter { it.neighborhoodId == neighborhoodId }
+            .filter { it.encountered == "NONE" }
+        Log.d("ArkhamDeckAdapter", "Found ${neighborhoodCards.size} cards for neighborhood $neighborhoodId (unencountered)")
+        neighborhoodCards
     }
     
     /**

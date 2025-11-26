@@ -62,8 +62,29 @@ class NeighborhoodSelector : AppCompatActivity() {
                             Log.w("NeighborhoodSelector", "Font not found: ${e.message}")
                         }
                         
-                        // Set background (simplified - use default button style)
-                        button.setBackgroundResource(R.drawable.btn_round)
+                        // Load and set background image from assets (matching original app)
+                        val buttonPath = neighborhood.getNeighborhoodButtonPath()
+                        if (buttonPath != null && buttonPath.isNotEmpty()) {
+                            try {
+                                val inputStream = assets.open(buttonPath)
+                                val bitmap = android.graphics.BitmapFactory.decodeStream(inputStream)
+                                inputStream.close()
+                                
+                                if (bitmap != null) {
+                                    button.background = android.graphics.drawable.BitmapDrawable(resources, bitmap)
+                                } else {
+                                    // Fallback to default if bitmap couldn't be loaded
+                                    button.setBackgroundResource(R.drawable.neighbourhood_overlay)
+                                }
+                            } catch (e: Exception) {
+                                Log.w("NeighborhoodSelector", "Could not load button image from $buttonPath: ${e.message}")
+                                // Fallback to default if image not found
+                                button.setBackgroundResource(R.drawable.neighbourhood_overlay)
+                            }
+                        } else {
+                            // No button path specified, use default
+                            button.setBackgroundResource(R.drawable.neighbourhood_overlay)
+                        }
                         
                         // Set click listener
                         button.setOnClickListener {

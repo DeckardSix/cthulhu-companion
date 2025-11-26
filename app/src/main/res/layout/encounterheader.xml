@@ -19,7 +19,7 @@
         android:paddingBottom="0dp"
         android:typeface="serif"
         android:textSize="18sp"
-        android:textColor="@color/white"
+        android:textColor="#FF000000"
         android:text="TextView" />
     <Button
         android:id="@+id/button1"
@@ -32,6 +32,6 @@
         android:gravity="center"
         android:layout_alignBaseline="@+id/titleTV1"
         android:layout_toRightOf="@+id/titleTV1"
-        android:background="@drawable/btn_round" />
+        android:background="@drawable/end_right" />
 </RelativeLayout>
 

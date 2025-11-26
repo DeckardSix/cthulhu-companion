@@ -217,7 +217,7 @@ class ArkhamCardFragment : Fragment() {
             val placeholder = TextView(requireContext()).apply {
                 text = "No encounters available for this card"
                 textSize = 16f
-                setTextColor(android.graphics.Color.WHITE)
+                setTextColor(android.graphics.Color.BLACK)
                 setPadding(30, 30, 30, 30)
             }
             cardContents.addView(placeholder)
@@ -238,6 +238,9 @@ class ArkhamCardFragment : Fragment() {
             // Set location name
             val location = encounter.getLocation()
             title.text = location?.getLocationName() ?: "Unknown Location"
+            
+            // Set text color to black (matching original app)
+            title.setTextColor(android.graphics.Color.BLACK)
             
             // Set font
             try {
@@ -291,6 +294,8 @@ class ArkhamCardFragment : Fragment() {
                 encounter.getEncounterText(),
                 HtmlCompat.FROM_HTML_MODE_LEGACY
             )
+            // Ensure text color is black (matching original app)
+            textView.setTextColor(android.graphics.Color.BLACK)
             textView.setPadding(
                 getIndependentWidth(textView.paddingLeft),
                 getIndependentHeight(textView.paddingTop),

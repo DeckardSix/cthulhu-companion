@@ -11,6 +11,6 @@
     android:gravity="top"
     android:typeface="serif"
     android:textSize="14sp"
-    android:textColor="@color/white"
+    android:textColor="#FF000000"
     android:text="Encounter Text" />
 

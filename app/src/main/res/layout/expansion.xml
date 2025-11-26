@@ -48,18 +48,16 @@
             android:id="@+id/open_otherworld" 
             android:layout_height="100dp"
             android:layout_width="100dp"
-            android:background="@drawable/btn_round"
+            android:background="@drawable/ow_btn"
             android:layout_alignParentLeft="true"
-            android:onClick="openOW"
-            android:text="Other World" />
+            android:onClick="openOW" />
         <Button 
             android:id="@+id/open_neighborhoods" 
             android:layout_height="100dp"
             android:layout_width="100dp"
-            android:background="@drawable/btn_round"
+            android:background="@drawable/ae_btn"
             android:layout_alignParentRight="true"
-            android:onClick="openNeighborhood"
-            android:text="Neighborhood" />
+            android:onClick="openNeighborhood" />
     </RelativeLayout>
 </LinearLayout>
 </FrameLayout>

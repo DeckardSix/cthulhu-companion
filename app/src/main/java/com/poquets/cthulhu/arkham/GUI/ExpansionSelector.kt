@@ -203,10 +203,49 @@ class ExpansionSelector : AppCompatActivity() {
                     
                     // Set text color
                     checkbox.setTextColor(android.graphics.Color.WHITE)
-                    CompoundButtonCompat.setButtonTintList(
-                        checkbox,
-                        android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE)
-                    )
+                    
+                    // Load custom checkbox images from assets (matching original app)
+                    try {
+                        val stateListDrawable = android.graphics.drawable.StateListDrawable()
+                        val stateChecked = android.R.attr.state_checked
+                        
+                        val opts = android.graphics.BitmapFactory.Options().apply {
+                            inScaled = true
+                            inDensity = 120 // DisplayMetrics.DENSITY_MEDIUM
+                            inTargetDensity = resources.displayMetrics.densityDpi
+                        }
+                        
+                        // Load unchecked state image
+                        val checkOffPath = expansion.getCheckboxOffPath()
+                        val checkOffStream = assets.open(checkOffPath)
+                        val checkOffBMP = android.graphics.BitmapFactory.decodeStream(checkOffStream, null, opts)
+                        checkOffStream.close()
+                        
+                        if (checkOffBMP != null) {
+                            val checkOffDrawable = android.graphics.drawable.BitmapDrawable(resources, checkOffBMP)
+                            stateListDrawable.addState(intArrayOf(-stateChecked), checkOffDrawable)
+                        }
+                        
+                        // Load checked state image
+                        val checkOnPath = expansion.getCheckboxOnPath()
+                        val checkOnStream = assets.open(checkOnPath)
+                        val checkOnBMP = android.graphics.BitmapFactory.decodeStream(checkOnStream, null, opts)
+                        checkOnStream.close()
+                        
+                        if (checkOnBMP != null) {
+                            val checkOnDrawable = android.graphics.drawable.BitmapDrawable(resources, checkOnBMP)
+                            stateListDrawable.addState(intArrayOf(stateChecked), checkOnDrawable)
+                        }
+                        
+                        checkbox.buttonDrawable = stateListDrawable
+                    } catch (e: Exception) {
+                        android.util.Log.e("ExpansionSelector", "Error loading checkbox images: ${e.message}", e)
+                        // Fallback to default tint
+                        CompoundButtonCompat.setButtonTintList(
+                            checkbox,
+                            android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE)
+                        )
+                    }
                     
                     // Set click listener (only for non-base game expansions)
                     if (!isBaseGame) {

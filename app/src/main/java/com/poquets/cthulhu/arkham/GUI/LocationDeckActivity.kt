@@ -1,5 +1,6 @@
 package com.poquets.cthulhu.arkham.GUI
 
+import android.graphics.BitmapFactory
 import android.os.Bundle
 import android.util.Log
 import android.view.Menu
@@ -15,6 +16,7 @@ import com.poquets.cthulhu.arkham.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.io.IOException
 
 /**
  * Location deck activity for Arkham Horror
@@ -46,6 +48,33 @@ class LocationDeckActivity : AppCompatActivity() {
         }
         
         viewPager = findViewById(R.id.viewpager)
+        
+        // Set background color based on neighborhood
+        activityScope.launch {
+            val neighborhood = AHFlyweightFactory.INSTANCE.getNeighborhood(neighborhoodId)
+            if (neighborhood != null) {
+                // Try to load button image and extract color
+                val buttonPath = neighborhood.getNeighborhoodButtonPath()
+                val buttonBitmap = if (buttonPath != null && buttonPath.isNotEmpty()) {
+                    try {
+                        val inputStream = assets.open(buttonPath)
+                        val bitmap = BitmapFactory.decodeStream(inputStream)
+                        inputStream.close()
+                        bitmap
+                    } catch (e: IOException) {
+                        Log.w("LocationDeckActivity", "Could not load button image: ${e.message}")
+                        null
+                    }
+                } else {
+                    null
+                }
+                
+                val neighborhoodColor = ArkhamColorUtils.getNeighborhoodColor(buttonBitmap, neighborhood.getNeighborhoodName())
+                if (neighborhoodColor != android.graphics.Color.TRANSPARENT) {
+                    window.decorView.setBackgroundColor(neighborhoodColor)
+                }
+            }
+        }
         
         // Load deck
         activityScope.launch {

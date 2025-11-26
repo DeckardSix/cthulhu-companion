@@ -1,12 +1,16 @@
 package com.poquets.cthulhu.arkham.GUI
 
+import android.graphics.BitmapFactory
 import android.graphics.Typeface
 import android.os.Bundle
 import android.util.DisplayMetrics
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.RelativeLayout
 import android.widget.ScrollView
@@ -20,6 +24,8 @@ import com.poquets.cthulhu.shared.database.UnifiedCard
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.IOException
 
 /**
  * Fragment to display an Arkham card with encounters
@@ -88,8 +94,116 @@ class ArkhamCardFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        val scrollView = inflater.inflate(R.layout.cardlistitem, container, false) as ScrollView
+        // Create a FrameLayout to layer the color background and card image
+        val frameLayout = FrameLayout(requireContext()).apply {
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        }
+        
+        // Load color and card image asynchronously
+        fragmentScope.launch {
+            // Get neighborhood for color extraction (in IO dispatcher since it may block)
+            val neighborhood = withContext(Dispatchers.IO) {
+                if (!isOtherWorld) {
+                    card?.getNeighborhood()
+                } else {
+                    null
+                }
+            }
+            
+            Log.d("ArkhamCardFragment", "Neighborhood: ${neighborhood?.getNeighborhoodName()}, Card: ${card?.getID()}")
+            
+            // Extract/get neighborhood color
+            val neighborhoodColor = if (neighborhood != null) {
+                // Try to load button image and extract color
+                val buttonPath: String? = neighborhood.getNeighborhoodButtonPath()
+                Log.d("ArkhamCardFragment", "Button path: $buttonPath")
+                val buttonBitmap = if (buttonPath != null && buttonPath.isNotEmpty()) {
+                    try {
+                        val inputStream = requireContext().assets.open(buttonPath)
+                        val bitmap = BitmapFactory.decodeStream(inputStream)
+                        inputStream.close()
+                        Log.d("ArkhamCardFragment", "Loaded button bitmap: ${bitmap != null}")
+                        bitmap
+                    } catch (e: IOException) {
+                        Log.w("ArkhamCardFragment", "Could not load button image: ${e.message}")
+                        null
+                    }
+                } else {
+                    Log.w("ArkhamCardFragment", "Button path is null or empty")
+                    null
+                }
+                
+                val color = ArkhamColorUtils.getNeighborhoodColor(buttonBitmap, neighborhood.getNeighborhoodName())
+                Log.d("ArkhamCardFragment", "Extracted color: ${String.format("#%08X", color)}")
+                color
+            } else {
+                Log.w("ArkhamCardFragment", "Neighborhood is null")
+                android.graphics.Color.TRANSPARENT
+            }
+            
+            // Set background color on main thread
+            withContext(Dispatchers.Main) {
+                if (neighborhoodColor != android.graphics.Color.TRANSPARENT) {
+                    frameLayout.setBackgroundColor(neighborhoodColor)
+                    Log.d("ArkhamCardFragment", "Set background color")
+                }
+            }
+            
+            // Load and overlay card image
+            // Get card path asynchronously (getCardPath() may block)
+            val cardPath: String? = if (!isOtherWorld) {
+                withContext(Dispatchers.IO) {
+                    card?.getCardPath()
+                }
+            } else {
+                withContext(Dispatchers.IO) {
+                    otherWorldCard?.getCardPath()
+                }
+            }
+            
+            Log.d("ArkhamCardFragment", "Card path: $cardPath")
+            
+            if (cardPath != null && cardPath.isNotEmpty()) {
+                try {
+                    val inputStream = requireContext().assets.open(cardPath)
+                    val cardBitmap = BitmapFactory.decodeStream(inputStream)
+                    inputStream.close()
+                    
+                    if (cardBitmap != null) {
+                        Log.d("ArkhamCardFragment", "Loaded card bitmap: ${cardBitmap.width}x${cardBitmap.height}")
+                        withContext(Dispatchers.Main) {
+                            val cardImageView = ImageView(requireContext()).apply {
+                                setImageBitmap(cardBitmap)
+                                scaleType = ImageView.ScaleType.FIT_XY
+                                layoutParams = FrameLayout.LayoutParams(
+                                    FrameLayout.LayoutParams.MATCH_PARENT,
+                                    FrameLayout.LayoutParams.MATCH_PARENT
+                                )
+                            }
+                            // Insert at position 0 so it's behind the scroll view
+                            frameLayout.addView(cardImageView, 0)
+                            Log.d("ArkhamCardFragment", "Added card image view")
+                        }
+                    } else {
+                        Log.w("ArkhamCardFragment", "Card bitmap is null")
+                    }
+                } catch (e: IOException) {
+                    Log.w("ArkhamCardFragment", "Could not load card image from $cardPath: ${e.message}")
+                }
+            } else {
+                Log.w("ArkhamCardFragment", "Card path is null or empty")
+            }
+        }
+        
+        val scrollView = inflater.inflate(R.layout.cardlistitem, frameLayout, false) as ScrollView
+        // Remove the default background so card image and color show through
+        scrollView.background = null
         val cardContents = scrollView.findViewById<LinearLayout>(R.id.card_contents)
+        // Make card contents background transparent too
+        cardContents?.background = null
         
         // Get encounters
         val encounters = if (isOtherWorld) {
@@ -198,7 +312,10 @@ class ArkhamCardFragment : Fragment() {
             lastTextView.layoutParams = params
         }
         
-        return scrollView
+        // Add scroll view on top of card image
+        frameLayout.addView(scrollView)
+        
+        return frameLayout
     }
     
     private fun getIndependentWidth(origWidth: Int): Int {

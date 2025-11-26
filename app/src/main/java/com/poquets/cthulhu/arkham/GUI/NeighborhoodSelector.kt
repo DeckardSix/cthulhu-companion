@@ -64,6 +64,8 @@ class NeighborhoodSelector : AppCompatActivity() {
                         
                         // Load and set background image from assets (matching original app)
                         val buttonPath = neighborhood.getNeighborhoodButtonPath()
+                        Log.d("NeighborhoodSelector", "Loading button for ${neighborhood.getNeighborhoodName()}: path=$buttonPath")
+                        
                         if (buttonPath != null && buttonPath.isNotEmpty()) {
                             try {
                                 val inputStream = assets.open(buttonPath)
@@ -71,17 +73,20 @@ class NeighborhoodSelector : AppCompatActivity() {
                                 inputStream.close()
                                 
                                 if (bitmap != null) {
+                                    Log.d("NeighborhoodSelector", "Successfully loaded button image: ${bitmap.width}x${bitmap.height}")
                                     button.background = android.graphics.drawable.BitmapDrawable(resources, bitmap)
                                 } else {
+                                    Log.w("NeighborhoodSelector", "Bitmap is null after loading from $buttonPath")
                                     // Fallback to default if bitmap couldn't be loaded
                                     button.setBackgroundResource(R.drawable.neighbourhood_overlay)
                                 }
                             } catch (e: Exception) {
-                                Log.w("NeighborhoodSelector", "Could not load button image from $buttonPath: ${e.message}")
+                                Log.e("NeighborhoodSelector", "Could not load button image from $buttonPath: ${e.message}", e)
                                 // Fallback to default if image not found
                                 button.setBackgroundResource(R.drawable.neighbourhood_overlay)
                             }
                         } else {
+                            Log.w("NeighborhoodSelector", "Button path is null or empty for ${neighborhood.getNeighborhoodName()}")
                             // No button path specified, use default
                             button.setBackgroundResource(R.drawable.neighbourhood_overlay)
                         }

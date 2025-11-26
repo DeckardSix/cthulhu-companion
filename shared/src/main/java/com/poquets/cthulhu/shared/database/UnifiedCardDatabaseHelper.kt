@@ -35,6 +35,13 @@ data class EncounterData(
     val locationId: Long? = null
 )
 
+data class EncounterWithCardData(
+    val encounterId: Long,
+    val encounterText: String,
+    val locationId: Long,
+    val cardId: String
+)
+
 /**
  * Unified database helper that stores cards from both Arkham and Eldritch games
  * Cards are separated by game_type field
@@ -1260,6 +1267,78 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
             Log.e(TAG, "Error linking card to encounter: ${e.message}", e)
         } finally {
             rwLock.writeLock().unlock()
+        }
+    }
+    
+    /**
+     * Find encounters by location and card colors
+     * Returns encounters that:
+     * 1. Belong to the specified location
+     * 2. Are from cards that have at least one of the specified colors
+     * 
+     * This is used for other world card selection logic.
+     */
+    fun findEncountersByLocationAndColors(
+        locationId: Long,
+        colorIds: List<Long>,
+        gameType: GameType
+    ): List<EncounterWithCardData> {
+        rwLock.readLock().lock()
+        try {
+            if (colorIds.isEmpty()) {
+                return emptyList()
+            }
+            
+            val db = readableDatabase
+            val colorIdsStr = colorIds.joinToString(",")
+            
+            // Find encounters where:
+            // 1. encounter.locID = locationId
+            // 2. The encounter's card has at least one of the colorIds (via CardToColor)
+            val query = """
+                SELECT DISTINCT 
+                    e.$COLUMN_ENC_ID,
+                    e.$COLUMN_ENC_TEXT,
+                    e.$COLUMN_LOC_ID,
+                    c.$COLUMN_CARD_ID
+                FROM $TABLE_ENCOUNTERS e
+                INNER JOIN $TABLE_CARD_TO_ENCOUNTER cte ON e.$COLUMN_ENC_ID = cte.$COLUMN_CTE_ENC_ID
+                INNER JOIN $TABLE_CARDS c ON cte.$COLUMN_CTE_CARD_ID = c.$COLUMN_CARD_ID
+                INNER JOIN $TABLE_CARD_TO_COLOR ctc ON c.$COLUMN_CARD_ID = ctc.$COLUMN_CTC_CARD_ID
+                WHERE e.$COLUMN_LOC_ID = ?
+                    AND c.$COLUMN_GAME_TYPE = ?
+                    AND ctc.$COLUMN_CTC_COLOR_ID IN ($colorIdsStr)
+                ORDER BY e.$COLUMN_ENC_ID ASC
+            """.trimIndent()
+            
+            val cursor = db.rawQuery(query, arrayOf(locationId.toString(), gameType.value))
+            
+            val results = mutableListOf<EncounterWithCardData>()
+            cursor.use {
+                val encIdIndex = it.getColumnIndexOrThrow(COLUMN_ENC_ID)
+                val encTextIndex = it.getColumnIndexOrThrow(COLUMN_ENC_TEXT)
+                val locIdIndex = it.getColumnIndexOrThrow(COLUMN_LOC_ID)
+                val cardIdIndex = it.getColumnIndexOrThrow(COLUMN_CARD_ID)
+                
+                while (it.moveToNext()) {
+                    results.add(
+                        EncounterWithCardData(
+                            encounterId = it.getLong(encIdIndex),
+                            encounterText = it.getString(encTextIndex),
+                            locationId = it.getLong(locIdIndex),
+                            cardId = it.getString(cardIdIndex)
+                        )
+                    )
+                }
+            }
+            
+            Log.d(TAG, "Found ${results.size} encounters for location $locationId with colors $colorIds")
+            return results
+        } catch (e: Exception) {
+            Log.e(TAG, "Error finding encounters by location and colors: ${e.message}", e)
+            return emptyList()
+        } finally {
+            rwLock.readLock().unlock()
         }
     }
     

@@ -7,6 +7,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import java.util.Collections
 import java.util.Random
 
@@ -28,6 +29,9 @@ class GameStateAdapter private constructor(context: Context) {
     
     // Store selected otherworld colors
     private val currentColors = mutableMapOf<Long, OtherWorldColorAdapter>()
+    
+    // Store selected otherworld location ID
+    private var selectedLocationId: Long? = null
     
     companion object {
         @Volatile
@@ -258,26 +262,67 @@ class GameStateAdapter private constructor(context: Context) {
     }
     
     /**
+     * Set selected otherworld location ID
+     */
+    fun setSelectedOtherWorldLocation(locationId: Long?) {
+        selectedLocationId = locationId
+        Log.d("GameStateAdapter", "Set selected otherworld location: $locationId")
+    }
+    
+    /**
+     * Get selected otherworld location ID
+     */
+    fun getSelectedOtherWorldLocation(): Long? {
+        return selectedLocationId
+    }
+    
+    /**
      * Get filtered other world deck (compatible with GameState.getFilteredOtherWorldDeck())
+     * 
+     * NEW LOGIC: Instead of filtering cards by color, we:
+     * 1. Find encounters that match the selected location AND card colors
+     * 2. Pick ONE encounter at random
+     * 3. Return the card containing that encounter
      */
     fun getFilteredOtherWorldDeck(): List<OtherWorldCardAdapter> {
-        val allCards = getAllOtherWorldDeck()
-
-        // If no colors are selected, return the full deck
         val selectedColors = getSelectedOtherWorldColors()
-        if (selectedColors.isEmpty()) {
-            return allCards
+        val locationId = getSelectedOtherWorldLocation()
+        
+        // If no colors or location selected, return the full deck (fallback behavior)
+        if (selectedColors.isEmpty() || locationId == null) {
+            Log.d("GameStateAdapter", "No colors or location selected, returning full deck")
+            return getAllOtherWorldDeck()
         }
 
-        val selectedColorIds = selectedColors.map { it.getID() }.toSet()
-
-        // Keep only cards that have at least one matching color
-        val filtered = allCards.filter { card ->
-            val cardColorIds = card.getOtherWorldColors().map { it.getID() }.toSet()
-            cardColorIds.intersect(selectedColorIds).isNotEmpty()
+        val selectedColorIds = selectedColors.map { it.getID() }
+        
+        // Find encounters that match the location and colors
+        val db = UnifiedCardDatabaseHelper.getInstance(appContext)
+        val matchingEncounters = runBlocking {
+            withContext(Dispatchers.IO) {
+                db.findEncountersByLocationAndColors(locationId, selectedColorIds, GameType.ARKHAM)
+            }
         }
-
-        return if (filtered.isNotEmpty()) filtered else allCards
+        
+        if (matchingEncounters.isEmpty()) {
+            Log.w("GameStateAdapter", "No encounters found for location $locationId with colors $selectedColorIds, returning full deck")
+            return getAllOtherWorldDeck()
+        }
+        
+        // Pick one encounter at random
+        val selectedEncounter = matchingEncounters[rand.nextInt(matchingEncounters.size)]
+        Log.d("GameStateAdapter", "Selected random encounter ${selectedEncounter.encounterId} from card ${selectedEncounter.cardId} (out of ${matchingEncounters.size} matches)")
+        
+        // Find the card containing this encounter
+        val allCards = getAllOtherWorldDeck()
+        val card = allCards.find { it.getID().toString() == selectedEncounter.cardId }
+        
+        return if (card != null) {
+            listOf(card)
+        } else {
+            Log.w("GameStateAdapter", "Card ${selectedEncounter.cardId} not found in deck, returning full deck")
+            getAllOtherWorldDeck()
+        }
     }
     
     /**

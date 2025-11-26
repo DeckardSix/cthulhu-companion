@@ -125,6 +125,9 @@ class OtherworldSelector : AppCompatActivity() {
                             // Clear selected colors
                             GameState.getInstance(applicationContext).clearSelectedOtherWorldColor()
                             
+                            // Set selected location ID
+                            GameState.getInstance(applicationContext).setSelectedOtherWorldLocation(location.getID())
+                            
                             // Set selected colors based on location's colors
                             for (color in otherWorldColors) {
                                 GameState.getInstance(applicationContext).addSelectedOtherWorldColor(color)

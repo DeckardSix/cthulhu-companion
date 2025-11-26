@@ -64,29 +64,12 @@ class OtherWorldDeckActivity : AppCompatActivity() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             R.id.shuffle -> {
-                shuffleDeck()
+                // For other world cards, refresh means close the card
+                // The next time a location is selected, a new random encounter will be picked
+                finish()
                 true
             }
             else -> super.onOptionsItemSelected(item)
-        }
-    }
-    
-    private fun shuffleDeck() {
-        activityScope.launch {
-            GameState.getInstance(applicationContext).prepOtherWorldDeck()
-            
-            val deck = GameState.getInstance(applicationContext).getFilteredOtherWorldDeck()
-            
-            if (deck.isEmpty()) {
-                Toast.makeText(this@OtherWorldDeckActivity, "No cards to shuffle", Toast.LENGTH_SHORT).show()
-                return@launch
-            }
-            
-            val fragments = deck.map { ArkhamCardFragment.newInstance(it) }
-            viewPager.adapter = CardPagerAdapter(this@OtherWorldDeckActivity, fragments)
-            viewPager.currentItem = 0
-            
-            Toast.makeText(this@OtherWorldDeckActivity, "Deck shuffled", Toast.LENGTH_SHORT).show()
         }
     }
     

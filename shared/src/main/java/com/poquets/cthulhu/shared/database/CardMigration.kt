@@ -307,6 +307,68 @@ object CardMigration {
     }
     
     /**
+     * Migrate expansions from Arkham database
+     * Ensures all 10 expansions are created in unified database
+     */
+    private fun migrateArkhamExpansions(
+        arkhamDb: SQLiteDatabase,
+        unifiedDb: UnifiedCardDatabaseHelper
+    ) {
+        try {
+            val cursor = arkhamDb.rawQuery(
+                "SELECT expID, expName, expIconPath FROM Expansion",
+                null
+            )
+            
+            var count = 0
+            cursor.use {
+                val idIndex = it.getColumnIndexOrThrow("expID")
+                val nameIndex = it.getColumnIndexOrThrow("expName")
+                val iconPathIndex = it.getColumnIndex("expIconPath")
+                
+                while (it.moveToNext()) {
+                    val expId = it.getLong(idIndex)
+                    val expName = it.getString(nameIndex)
+                    val iconPath = it.getStringOrNull(iconPathIndex)
+                    
+                    // Normalize expansion name (Base -> BASE for consistency)
+                    val normalizedExpName = if (expName.equals("Base", ignoreCase = true)) "BASE" else expName
+                    
+                    unifiedDb.getOrCreateExpansion(GameType.ARKHAM, expId.toString(), normalizedExpName, iconPath)
+                    count++
+                }
+            }
+            
+            Log.d(TAG, "Migrated $count expansions from database")
+            
+            // Ensure all 10 expansions exist (even if not in temp database)
+            // This matches Init.java which creates all 10 expansions
+            val allExpansions = mapOf(
+                "1" to Pair("Base", null),
+                "2" to Pair("Curse of the Dark Pharoah", "encounter/icon_exp_dp.png"),
+                "3" to Pair("Dunwich Horror", "encounter/icon_exp_dh.png"),
+                "4" to Pair("The King in Yellow", "encounter/icon_exp_ky.png"),
+                "5" to Pair("Kingsport Horror", "encounter/icon_exp_kh.png"),
+                "6" to Pair("Black Goat of the Woods", "encounter/icon_exp_bg.png"),
+                "7" to Pair("Innsmouth Horror", "encounter/icon_exp_ih.png"),
+                "8" to Pair("Lurker at the Threshold", "encounter/icon_exp_lt.png"),
+                "9" to Pair("Curse of the Dark Pharoah Revised", "encounter/icon_exp_dpr.png"),
+                "10" to Pair("Miskatonic Horror", "encounter/icon_exp_mh.png")
+            )
+            
+            for ((expIdStr, expData) in allExpansions) {
+                val (expName, iconPath) = expData
+                val normalizedExpName = if (expName.equals("Base", ignoreCase = true)) "BASE" else expName
+                unifiedDb.getOrCreateExpansion(GameType.ARKHAM, expIdStr, normalizedExpName, iconPath)
+            }
+            
+            Log.d(TAG, "Ensured all 10 expansions exist in unified database")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error migrating expansions: ${e.message}", e)
+        }
+    }
+    
+    /**
      * Migrate neighborhoods from Arkham database
      */
     private fun migrateArkhamNeighborhoods(
@@ -408,6 +470,8 @@ object CardMigration {
             )
             
             var count = 0
+            var otherworldCount = 0
+            var neighborhoodCount = 0
             cursor.use {
                 val idIndex = it.getColumnIndexOrThrow("locID")
                 val nameIndex = it.getColumnIndexOrThrow("locName")
@@ -424,6 +488,12 @@ object CardMigration {
                     val buttonPath = it.getStringOrNull(buttonPathIndex)
                     val sort = if (sortIndex >= 0 && !it.isNull(sortIndex)) it.getInt(sortIndex) else 0
                     
+                    if (neiId == null) {
+                        otherworldCount++
+                    } else {
+                        neighborhoodCount++
+                    }
+                    
                     val unifiedExpId = expId?.let {
                         val (expName, iconPath) = expansionMap[it] ?: Pair("Base", null)
                         // Normalize expansion name (Base -> BASE for consistency)
@@ -438,7 +508,28 @@ object CardMigration {
                 }
             }
             
-            Log.d(TAG, "Migrated $count locations")
+            Log.d(TAG, "Migrated $count locations ($otherworldCount otherworld, $neighborhoodCount neighborhood)")
+            
+            // Log some sample otherworld locations
+            if (otherworldCount > 0) {
+                val sampleCursor = arkhamDb.rawQuery(
+                    "SELECT locID, locName, locExpID FROM Location WHERE neiID IS NULL LIMIT 10",
+                    null
+                )
+                sampleCursor.use {
+                    val idIndex = it.getColumnIndexOrThrow("locID")
+                    val nameIndex = it.getColumnIndexOrThrow("locName")
+                    val expIdIndex = it.getColumnIndex("locExpID")
+                    val samples = mutableListOf<String>()
+                    while (it.moveToNext() && samples.size < 10) {
+                        val locId = it.getLong(idIndex)
+                        val name = it.getString(nameIndex)
+                        val expId = if (expIdIndex >= 0 && !it.isNull(expIdIndex)) it.getLong(expIdIndex) else null
+                        samples.add("$name(ID=$locId, expId=$expId)")
+                    }
+                    Log.d(TAG, "Sample otherworld locations: ${samples.joinToString(", ")}")
+                }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error migrating locations: ${e.message}", e)
         }
@@ -532,6 +623,41 @@ object CardMigration {
     }
     
     /**
+     * Migrate CardToColor relationships from Arkham database
+     * This is important for otherworld cards to determine which card image to show
+     */
+    private fun migrateArkhamCardToColor(
+        arkhamDb: SQLiteDatabase,
+        unifiedDb: UnifiedCardDatabaseHelper
+    ) {
+        try {
+            // CardToColor maps Arkham other world cards to their gate colors.
+            // We now persist this directly into the unified database's card_to_color table.
+            val cursor = arkhamDb.rawQuery(
+                "SELECT cardToColorCardID, cardToColorColorID FROM CardToColor",
+                null
+            )
+            
+            var count = 0
+            cursor.use {
+                val cardIdIndex = it.getColumnIndexOrThrow("cardToColorCardID")
+                val colorIdIndex = it.getColumnIndexOrThrow("cardToColorColorID")
+                
+                while (it.moveToNext()) {
+                    val cardId = it.getLong(cardIdIndex)
+                    val colorId = it.getLong(colorIdIndex)
+                    unifiedDb.linkCardToColor(cardId.toString(), colorId)
+                    count++
+                }
+            }
+            
+            Log.d(TAG, "Migrated $count CardToColor relationships into unified database")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error migrating CardToColor: ${e.message}", e)
+        }
+    }
+    
+    /**
      * Migrate encounters from Arkham database
      */
     private fun migrateArkhamEncounters(
@@ -561,6 +687,25 @@ object CardMigration {
             }
             
             Log.d(TAG, "Migrated $count encounters")
+            
+            // Verify some encounters and their locations
+            if (count > 0) {
+                val sampleCursor = arkhamDb.rawQuery(
+                    "SELECT encID, locID FROM Encounter LIMIT 5",
+                    null
+                )
+                sampleCursor.use {
+                    val encIdIndex = it.getColumnIndexOrThrow("encID")
+                    val locIdIndex = it.getColumnIndexOrThrow("locID")
+                    val samples = mutableListOf<String>()
+                    while (it.moveToNext() && samples.size < 5) {
+                        val encId = it.getLong(encIdIndex)
+                        val locId = it.getLong(locIdIndex)
+                        samples.add("encID=$encId, locID=$locId")
+                    }
+                    Log.d(TAG, "Sample encounters: ${samples.joinToString(", ")}")
+                }
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error migrating encounters: ${e.message}", e)
         }
@@ -998,46 +1143,47 @@ object CardMigration {
             Log.d(TAG, "Creating temporary database schema...")
             createTempArkhamSchema(tempDb)
             
-            // Disable foreign key checking during population (we'll validate after)
-            // This allows us to insert data in any order without constraint violations
+            // Optimize SQLite for bulk inserts (critical for performance)
             try {
                 tempDb.execSQL("PRAGMA foreign_keys = OFF")
-                Log.d(TAG, "Foreign keys disabled for data population")
+                tempDb.execSQL("PRAGMA synchronous = OFF")  // Disable fsync for speed
+                tempDb.execSQL("PRAGMA journal_mode = MEMORY")  // Use in-memory journal
+                tempDb.execSQL("PRAGMA cache_size = 10000")  // Increase cache
+                tempDb.execSQL("PRAGMA temp_store = MEMORY")  // Use memory for temp tables
+                Log.d(TAG, "SQLite optimizations applied for bulk insert")
             } catch (e: Exception) {
-                Log.w(TAG, "Could not disable foreign keys: ${e.message}")
+                Log.w(TAG, "Could not apply SQLite optimizations: ${e.message}")
             }
             
             // Use transactions for all inserts to improve performance and ensure atomicity
+            val startTime = System.currentTimeMillis()
             tempDb.beginTransaction()
             try {
                 // Use ArkhamInit to populate the temporary database
-                Log.d(TAG, "Calling ArkhamInit.FetchExpansion...")
+                // Note: These methods do thousands of individual INSERTs, which is why it takes time
+                Log.i(TAG, "Step 1/7: Loading expansions...")
                 ArkhamInit.FetchExpansion(tempDb)
-                Log.d(TAG, "FetchExpansion completed")
                 
-                Log.d(TAG, "Calling ArkhamInit.FetchNeighborhoods...")
+                Log.i(TAG, "Step 2/7: Loading neighborhoods...")
                 ArkhamInit.FetchNeighborhoods(tempDb)
-                Log.d(TAG, "FetchNeighborhoods completed")
                 
-                Log.d(TAG, "Calling ArkhamInit.FetchLocations...")
+                Log.i(TAG, "Step 3/7: Loading locations...")
                 ArkhamInit.FetchLocations(tempDb)
-                Log.d(TAG, "FetchLocations completed")
                 
-                Log.d(TAG, "Calling ArkhamInit.FetchColors...")
+                Log.i(TAG, "Step 4/7: Loading colors...")
                 ArkhamInit.FetchColors(tempDb)
-                Log.d(TAG, "FetchColors completed")
                 
-                Log.d(TAG, "Calling ArkhamInit.FetchEncounters...")
+                Log.i(TAG, "Step 5/7: Loading encounters (this may take a minute)...")
                 ArkhamInit.FetchEncounters(tempDb)
-                Log.d(TAG, "FetchEncounters completed")
                 
-                Log.d(TAG, "Calling ArkhamInit.FetchOtherWorldLocations...")
+                Log.i(TAG, "Step 6/7: Loading other world locations...")
                 ArkhamInit.FetchOtherWorldLocations(tempDb)
-                Log.d(TAG, "FetchOtherWorldLocations completed")
                 
-                Log.d(TAG, "Calling ArkhamInit.FetchOtherWorldEncounter...")
+                Log.i(TAG, "Step 7/7: Loading other world encounters (this may take a minute)...")
                 ArkhamInit.FetchOtherWorldEncounter(tempDb)
-                Log.d(TAG, "FetchOtherWorldEncounter completed")
+                
+                val elapsed = (System.currentTimeMillis() - startTime) / 1000
+                Log.i(TAG, "Temporary database populated in ${elapsed}s")
                 
                 tempDb.setTransactionSuccessful()
                 Log.d(TAG, "Transaction committed successfully")
@@ -1048,12 +1194,14 @@ object CardMigration {
                 tempDb.endTransaction()
             }
             
-            // Re-enable foreign keys after data is inserted (for validation)
+            // Re-enable normal SQLite settings after data is inserted
             try {
                 tempDb.execSQL("PRAGMA foreign_keys = ON")
-                Log.d(TAG, "Foreign keys re-enabled for validation")
+                tempDb.execSQL("PRAGMA synchronous = NORMAL")
+                tempDb.execSQL("PRAGMA journal_mode = DELETE")
+                Log.d(TAG, "SQLite settings restored to normal")
             } catch (e: Exception) {
-                Log.w(TAG, "Could not re-enable foreign keys: ${e.message}")
+                Log.w(TAG, "Could not restore SQLite settings: ${e.message}")
             }
             
             // Verify data was inserted
@@ -1173,7 +1321,10 @@ object CardMigration {
         var migratedCount = 0
         
         try {
-            // First, migrate neighborhoods
+            // First, ensure all expansions are created in unified database
+            migrateArkhamExpansions(tempDb, unifiedDb)
+            
+            // Then, migrate neighborhoods
             migrateArkhamNeighborhoods(tempDb, unifiedDb)
             
             // Then, migrate locations
@@ -1184,6 +1335,25 @@ object CardMigration {
             
             // Migrate colors and location-to-color mappings
             migrateArkhamColors(tempDb, unifiedDb)
+            
+            // Migrate CardToColor relationships (for otherworld cards)
+            migrateArkhamCardToColor(tempDb, unifiedDb)
+            
+            // Pre-load all expansion names into a map for performance
+            Log.d(TAG, "Pre-loading expansion names...")
+            val expansionNameMap = mutableMapOf<Long, String>()
+            tempDb.rawQuery("SELECT expID, expName FROM Expansion", null).use { expCursor ->
+                val idIndex = expCursor.getColumnIndexOrThrow("expID")
+                val nameIndex = expCursor.getColumnIndexOrThrow("expName")
+                while (expCursor.moveToNext()) {
+                    val expId = expCursor.getLong(idIndex)
+                    val expName = expCursor.getString(nameIndex)
+                    // Normalize expansion name (Base -> BASE for consistency)
+                    val normalizedName = if (expName.equals("Base", ignoreCase = true)) "BASE" else expName
+                    expansionNameMap[expId] = normalizedName
+                }
+            }
+            Log.d(TAG, "Loaded ${expansionNameMap.size} expansion names")
             
             // Finally, migrate cards (reuse existing logic)
             Log.d(TAG, "Querying cards from temporary database...")
@@ -1201,6 +1371,8 @@ object CardMigration {
             )
             
             val cards = mutableListOf<UnifiedCard>()
+            var otherworldCardCount = 0
+            var neighborhoodCardCount = 0
             
             cursor.use {
                 val cardIdIndex = it.getColumnIndexOrThrow("cardID")
@@ -1215,26 +1387,24 @@ object CardMigration {
                         it.getLong(neiIdIndex)
                     } else null
                     
+                    // Track otherworld vs neighborhood cards
+                    if (neiId == null) {
+                        otherworldCardCount++
+                    } else {
+                        neighborhoodCardCount++
+                    }
+                    
                     // Get expansion(s) - cards can belong to multiple expansions
                     val expansions = if (expansionsIndex >= 0) {
                         it.getString(expansionsIndex) ?: "1"  // Default to base expansion (ID 1)
                     } else "1"
                     
                     // Create card for each expansion it belongs to
-                    val expansionList = expansions.split(",").map { it.trim() }
+                    val expansionList = expansions.split(",").map { it.trim().toLongOrNull() }.filterNotNull()
                     
                     for (expId in expansionList) {
-                        // Get expansion name
-                        val expCursor = tempDb.rawQuery(
-                            "SELECT expName FROM Expansion WHERE expID = ?",
-                            arrayOf(expId)
-                        )
-                        val expansionName = if (expCursor.moveToFirst()) {
-                            val name = expCursor.getString(0) ?: "Base"
-                            // Normalize expansion name (Base -> BASE for consistency)
-                            if (name.equals("Base", ignoreCase = true)) "BASE" else name
-                        } else "BASE"
-                        expCursor.close()
+                        // Get expansion name from pre-loaded map
+                        val expansionName = expansionNameMap[expId] ?: "BASE"
                         
                         val card = UnifiedCard(
                             gameType = GameType.ARKHAM,
@@ -1247,15 +1417,24 @@ object CardMigration {
                 }
             }
             
+            Log.d(TAG, "Found $otherworldCardCount otherworld cards (neiID=NULL) and $neighborhoodCardCount neighborhood cards")
+            
             // Log card creation details
             Log.d(TAG, "Created ${cards.size} UnifiedCard objects from temporary database")
+            val otherworldCardsInList = cards.count { it.neighborhoodId == null }
+            val neighborhoodCardsInList = cards.count { it.neighborhoodId != null }
+            Log.d(TAG, "Card breakdown: $otherworldCardsInList otherworld cards, $neighborhoodCardsInList neighborhood cards")
+            
             if (cards.isEmpty()) {
                 Log.w(TAG, "WARNING: No cards were created! Checking temporary database...")
                 // Check if there are any cards in the temp DB
                 val cardCountCheck = tempDb.rawQuery("SELECT COUNT(*) FROM Card", null).use { cursor ->
                     if (cursor.moveToFirst()) cursor.getInt(0) else 0
                 }
-                Log.w(TAG, "Temporary database contains $cardCountCheck cards in Card table")
+                val otherworldCountCheck = tempDb.rawQuery("SELECT COUNT(*) FROM Card WHERE neiID IS NULL", null).use { cursor ->
+                    if (cursor.moveToFirst()) cursor.getInt(0) else 0
+                }
+                Log.w(TAG, "Temporary database contains $cardCountCheck total cards ($otherworldCountCheck otherworld, ${cardCountCheck - otherworldCountCheck} neighborhood)")
                 
                 // Check CardToExpansion
                 val cardToExpCount = tempDb.rawQuery("SELECT COUNT(*) FROM CardToExpansion", null).use { cursor ->

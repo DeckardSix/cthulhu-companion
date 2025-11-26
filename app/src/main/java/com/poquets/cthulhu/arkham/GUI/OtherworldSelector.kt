@@ -43,6 +43,11 @@ class OtherworldSelector : AppCompatActivity() {
         activityScope.launch {
             val locations = AHFlyweightFactory.INSTANCE.getCurrentOtherWorldLocations()
             android.util.Log.d("OtherworldSelector", "Found ${locations.size} otherworld locations")
+            if (locations.isEmpty()) {
+                android.util.Log.w("OtherworldSelector", "WARNING: No otherworld locations found! This might indicate a migration issue.")
+            } else {
+                android.util.Log.d("OtherworldSelector", "Otherworld location names: ${locations.map { "${it.getLocationName()}(ID=${it.getID()})" }.joinToString(", ")}")
+            }
             val cursor = LocationCursorAdapter(locations)
             
             // Create adapter
@@ -223,9 +228,9 @@ class OtherworldSelector : AppCompatActivity() {
         val owcs = loc.getOtherWorldColors()
         Log.d("OtherworldSelector", "Location ${loc.getLocationName()} has ${owcs.size} colors")
         
-        // Position colors in corners: top-left, top-right, bottom-left, bottom-right
+        // Position colors in a 2x2 grid in the top-right corner (matching original app)
         for (i in owcs.indices) {
-            if (i >= 4) break // Max 4 colors (one per corner)
+            if (i >= 4) break // Max 4 colors
             
             val mtx = Matrix()
             mtx.setScale(resizeToFitWidth, resizeToFitHeight)
@@ -248,33 +253,26 @@ class OtherworldSelector : AppCompatActivity() {
             }
             
             if (colorBmp != null) {
-                val margin = 10
+                var topMargin = 10
+                var rightMargin = 10
                 
-                // Calculate position based on corner (0=top-left, 1=top-right, 2=bottom-left, 3=bottom-right)
-                // Positions are in original bitmap coordinates, scaling is applied via the matrix
-                val (top, left) = when (i) {
-                    0 -> {
-                        // Top-left corner
-                        Pair(margin.toFloat(), margin.toFloat())
-                    }
-                    1 -> {
-                        // Top-right corner: position from right edge
-                        Pair(margin.toFloat(), (bmp1.width - colorBmp.width - margin).toFloat())
-                    }
-                    2 -> {
-                        // Bottom-left corner: position from bottom edge
-                        Pair((bmp1.height - colorBmp.height - margin).toFloat(), margin.toFloat())
-                    }
-                    3 -> {
-                        // Bottom-right corner: position from bottom-right
-                        Pair((bmp1.height - colorBmp.height - margin).toFloat(), (bmp1.width - colorBmp.width - margin).toFloat())
-                    }
-                    else -> Pair(0f, 0f)
+                // Position in 2x2 grid: i=0 (top-left of grid), i=1 (top-right of grid), 
+                // i=2 (bottom-left of grid), i=3 (bottom-right of grid)
+                // The grid is positioned in the top-right corner of the button
+                if (i / 2 == 1) {
+                    // Second row (i=2 or i=3)
+                    topMargin = topMargin + colorBmp.height + 5
+                }
+                if (i % 2 == 1) {
+                    // Right column (i=1 or i=3)
+                    rightMargin = rightMargin + colorBmp.width + 5
                 }
                 
+                val top = (topMargin * resizeToFitHeight)
+                val left = (bmp1.width - (colorBmp.width + rightMargin) * resizeToFitWidth)
                 mtx.postTranslate(left, top)
                 canvas.drawBitmap(colorBmp, mtx, paint)
-                Log.d("OtherworldSelector", "Placed color ${owcs[i].getName()} (ID=${colorId}) at corner $i: top=$top, left=$left (button size: ${bmp1.width}x${bmp1.height}, color size: ${colorBmp.width}x${colorBmp.height}, resize: ${resizeToFitWidth}x${resizeToFitHeight})")
+                Log.d("OtherworldSelector", "Placed color ${owcs[i].getName()} (ID=${colorId}) at position $i: top=$top, left=$left")
             }
         }
         

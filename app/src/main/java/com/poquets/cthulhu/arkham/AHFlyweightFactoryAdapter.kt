@@ -65,8 +65,17 @@ class AHFlyweightFactoryAdapter private constructor(context: Context) {
                 repository.getExpansionsForGameType(GameType.ARKHAM)
             }
             
-            // Map expansion names to IDs (matching ArkhamInit.java)
-            // Note: IDs match the original Arkham database structure
+            // Map expansion names to IDs (matching Init.java exactly)
+            // ID 1 = Base
+            // ID 2 = Curse of the Dark Pharoah (note: typo "Pharoah" not "Pharaoh")
+            // ID 3 = Dunwich Horror
+            // ID 4 = The King in Yellow
+            // ID 5 = Kingsport Horror
+            // ID 6 = Black Goat of the Woods
+            // ID 7 = Innsmouth Horror
+            // ID 8 = Lurker at the Threshold
+            // ID 9 = Curse of the Dark Pharoah Revised
+            // ID 10 = Miskatonic Horror
             val expansionIdMap = mapOf(
                 "BASE" to 1L,
                 "Base" to 1L,
@@ -83,6 +92,7 @@ class AHFlyweightFactoryAdapter private constructor(context: Context) {
                 "Lurker at the Threshold" to 8L,
                 "The Lurker at the Threshold" to 8L,
                 "Curse of the Dark Pharoah Revised" to 9L,
+                "Curse of the Dark Pharaoh Revised" to 9L, // Handle both spellings
                 "Miskatonic Horror" to 10L
             )
             
@@ -110,10 +120,32 @@ class AHFlyweightFactoryAdapter private constructor(context: Context) {
             if (!expansionMap!!.containsKey(1L)) {
                 expansionMap!![1L] = ExpansionAdapter(1L, "Base", null)
             }
+            
+            // Ensure all 10 expansions are present (even if not in database yet)
+            // This matches Init.java which creates all 10 expansions
+            val allExpansions = mapOf(
+                1L to "Base",
+                2L to "Curse of the Dark Pharoah",
+                3L to "Dunwich Horror",
+                4L to "The King in Yellow",
+                5L to "Kingsport Horror",
+                6L to "Black Goat of the Woods",
+                7L to "Innsmouth Horror",
+                8L to "Lurker at the Threshold",
+                9L to "Curse of the Dark Pharoah Revised",
+                10L to "Miskatonic Horror"
+            )
+            
+            for ((expId, expName) in allExpansions) {
+                if (!expansionMap!!.containsKey(expId)) {
+                    expansionMap!![expId] = ExpansionAdapter(expId, expName, null)
+                    android.util.Log.d("AHFlyweightFactoryAdapter", "Added missing expansion: $expName (ID=$expId)")
+                }
+            }
         }
         
         val result = expansionMap!!.values.toList().sortedBy { it.getID() }
-        android.util.Log.d("AHFlyweightFactoryAdapter", "Returning ${result.size} expansions: ${result.map { it.getName() }}")
+        android.util.Log.d("AHFlyweightFactoryAdapter", "Returning ${result.size} expansions: ${result.map { "${it.getName()}(ID=${it.getID()})" }}")
         return result
     }
     
@@ -229,27 +261,56 @@ class AHFlyweightFactoryAdapter private constructor(context: Context) {
         return runBlocking {
             withContext(Dispatchers.IO) {
                 val db = UnifiedCardDatabaseHelper.getInstance(appContext)
-                // Search all neighborhoods for this location
+                
+                // First, try to find in neighborhood locations
                 val neighborhoods = getCurrentNeighborhoods()
                 for (neighborhood in neighborhoods) {
                     val locations = db.getLocationsByNeighborhood(neighborhood.getID())
                     locations.find { it.id == locID }?.let { loc ->
+                        android.util.Log.d("AHFlyweightFactoryAdapter", "Found location ${loc.id}: ${loc.name} in neighborhood ${neighborhood.getID()}")
                         return@withContext LocationAdapter(
                             loc.id,
                             loc.name,
-                            loc.buttonPath
+                            loc.buttonPath,
+                            getOtherWorldColorsFunc = null // Neighborhood locations don't have otherworld colors
                         )
                     }
                 }
-                // Also check other world locations
-                val otherWorldLocations = db.getOtherWorldLocations()
+                
+                // If not found in neighborhoods, check otherworld locations
+                // For otherworld locations, we need to search ALL expansions, not just enabled ones
+                // because encounters might reference locations from any expansion
+                val allExpansions = getExpansions()
+                val allExpansionIds = allExpansions.map { it.getID() }
+                
+                val otherWorldLocations = db.getOtherWorldLocations(allExpansionIds, listOf(499L, 500L))
+                android.util.Log.d("AHFlyweightFactoryAdapter", "Searching for location $locID in ${otherWorldLocations.size} otherworld locations (checked ${allExpansionIds.size} expansions)")
+                
                 otherWorldLocations.find { it.id == locID }?.let { loc ->
+                    android.util.Log.d("AHFlyweightFactoryAdapter", "Found otherworld location ${loc.id}: ${loc.name}")
                     return@withContext LocationAdapter(
                         loc.id,
                         loc.name,
-                        loc.buttonPath
+                        loc.buttonPath,
+                        getOtherWorldColorsFunc = { getOtherWorldColors(loc.id) }
                     )
                 }
+                
+                // If still not found, try a direct query without expansion filtering
+                val directLocation = db.getLocationById(locID)
+                if (directLocation != null) {
+                    android.util.Log.d("AHFlyweightFactoryAdapter", "Found location ${directLocation.id}: ${directLocation.name} via direct query")
+                    return@withContext LocationAdapter(
+                        directLocation.id,
+                        directLocation.name,
+                        directLocation.buttonPath,
+                        getOtherWorldColorsFunc = if (directLocation.neiId == null) { 
+                            { getOtherWorldColors(directLocation.id) } 
+                        } else null
+                    )
+                }
+                
+                android.util.Log.w("AHFlyweightFactoryAdapter", "Location $locID not found anywhere")
                 null
             }
         }
@@ -284,6 +345,16 @@ class AHFlyweightFactoryAdapter private constructor(context: Context) {
                 val locations = db.getOtherWorldLocations(expansionIds, listOf(499L, 500L))
                 
                 android.util.Log.d("AHFlyweightFactoryAdapter", "Found ${locations.size} otherworld locations for expansions: $expansionIds")
+                if (locations.isEmpty()) {
+                    // Try without expansion filtering to see if any locations exist
+                    val allLocations = db.getOtherWorldLocations(null, listOf(499L, 500L))
+                    android.util.Log.w("AHFlyweightFactoryAdapter", "No locations found with expansion filter. Total otherworld locations (excluding 499,500): ${allLocations.size}")
+                    if (allLocations.isNotEmpty()) {
+                        android.util.Log.d("AHFlyweightFactoryAdapter", "Sample locations: ${allLocations.take(5).map { "${it.name}(ID=${it.id}, expId=${it.expId})" }.joinToString(", ")}")
+                    }
+                } else {
+                    android.util.Log.d("AHFlyweightFactoryAdapter", "Location names: ${locations.map { "${it.name}(ID=${it.id}, expId=${it.expId})" }.joinToString(", ")}")
+                }
                 
                 locations.map { loc ->
                     LocationAdapter(
@@ -295,6 +366,18 @@ class AHFlyweightFactoryAdapter private constructor(context: Context) {
                 }
             }
         }
+    }
+    
+    /**
+     * Get otherworld card path for colored card (compatible with AHFlyweightFactory.getOtherWorldCardPathForColoredCard())
+     * This finds the card image path based on the card's colors matching a path's colors
+     */
+    fun getOtherWorldCardPathForColoredCard(cardID: Long): String? {
+        // Full color-to-path mapping via Path/ColorToPath tables is not yet implemented in the unified DB.
+        // For now, always return a generic encounter card template that exists in this app's assets so
+        // other world cards render with a proper frame instead of a plain color background.
+        android.util.Log.d("AHFlyweightFactoryAdapter", "Using generic encounter card template for otherworld card $cardID")
+        return "encounter/encounter_front_downtown.png"
     }
     
     /**

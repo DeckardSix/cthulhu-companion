@@ -251,11 +251,33 @@ class GameStateAdapter private constructor(context: Context) {
     }
     
     /**
+     * Get all selected other world colors
+     */
+    fun getSelectedOtherWorldColors(): List<OtherWorldColorAdapter> {
+        return currentColors.values.toList()
+    }
+    
+    /**
      * Get filtered other world deck (compatible with GameState.getFilteredOtherWorldDeck())
      */
     fun getFilteredOtherWorldDeck(): List<OtherWorldCardAdapter> {
-        // TODO: Filter by selected colors
-        return getAllOtherWorldDeck()
+        val allCards = getAllOtherWorldDeck()
+
+        // If no colors are selected, return the full deck
+        val selectedColors = getSelectedOtherWorldColors()
+        if (selectedColors.isEmpty()) {
+            return allCards
+        }
+
+        val selectedColorIds = selectedColors.map { it.getID() }.toSet()
+
+        // Keep only cards that have at least one matching color
+        val filtered = allCards.filter { card ->
+            val cardColorIds = card.getOtherWorldColors().map { it.getID() }.toSet()
+            cardColorIds.intersect(selectedColorIds).isNotEmpty()
+        }
+
+        return if (filtered.isNotEmpty()) filtered else allCards
     }
     
     /**

@@ -115,8 +115,34 @@ class ArkhamCardFragment : Fragment() {
             
             Log.d("ArkhamCardFragment", "Neighborhood: ${neighborhood?.getNeighborhoodName()}, Card: ${card?.getID()}")
             
-            // Extract/get neighborhood color
-            val neighborhoodColor = if (neighborhood != null) {
+            // Extract/get neighborhood color or otherworld color
+            val backgroundColor = if (isOtherWorld) {
+                // For otherworld cards, get color from selected otherworld colors
+                val gameState = GameState.getInstance(requireContext())
+                val selectedColors = gameState.getSelectedOtherWorldColors()
+                Log.d("ArkhamCardFragment", "Selected otherworld colors: ${selectedColors.size}")
+                
+                // Get the first selected color (or first color of the card if no selection)
+                val colorToUse = if (selectedColors.isNotEmpty()) {
+                    selectedColors[0]
+                } else {
+                    // Fallback to card's first color
+                    otherWorldCard?.getOtherWorldColors()?.firstOrNull()
+                }
+                
+                if (colorToUse != null) {
+                    // Map color ID to actual color value
+                    when (colorToUse.getID().toInt()) {
+                        1 -> android.graphics.Color.parseColor("#FFD700") // Yellow
+                        2 -> android.graphics.Color.parseColor("#DC143C") // Red (Crimson)
+                        3 -> android.graphics.Color.parseColor("#4169E1") // Blue (Royal Blue)
+                        4 -> android.graphics.Color.parseColor("#228B22") // Green (Forest Green)
+                        else -> android.graphics.Color.TRANSPARENT
+                    }
+                } else {
+                    android.graphics.Color.TRANSPARENT
+                }
+            } else if (neighborhood != null) {
                 // Try to load button image and extract color
                 val buttonPath: String? = neighborhood.getNeighborhoodButtonPath()
                 Log.d("ArkhamCardFragment", "Button path: $buttonPath")
@@ -146,9 +172,9 @@ class ArkhamCardFragment : Fragment() {
             
             // Set background color on main thread
             withContext(Dispatchers.Main) {
-                if (neighborhoodColor != android.graphics.Color.TRANSPARENT) {
-                    frameLayout.setBackgroundColor(neighborhoodColor)
-                    Log.d("ArkhamCardFragment", "Set background color")
+                if (backgroundColor != android.graphics.Color.TRANSPARENT) {
+                    frameLayout.setBackgroundColor(backgroundColor)
+                    Log.d("ArkhamCardFragment", "Set background color: ${String.format("#%08X", backgroundColor)}")
                 }
             }
             
@@ -188,13 +214,19 @@ class ArkhamCardFragment : Fragment() {
                             Log.d("ArkhamCardFragment", "Added card image view")
                         }
                     } else {
-                        Log.w("ArkhamCardFragment", "Card bitmap is null")
+                        Log.w("ArkhamCardFragment", "Card bitmap is null for path: $cardPath")
+                        // Try fallback
+                        tryFallbackCardImage(frameLayout)
                     }
                 } catch (e: IOException) {
                     Log.w("ArkhamCardFragment", "Could not load card image from $cardPath: ${e.message}")
+                    // Try fallback
+                    tryFallbackCardImage(frameLayout)
                 }
             } else {
-                Log.w("ArkhamCardFragment", "Card path is null or empty")
+                Log.w("ArkhamCardFragment", "Card path is null or empty, trying fallback")
+                // Try fallback
+                tryFallbackCardImage(frameLayout)
             }
         }
         
@@ -331,6 +363,58 @@ class ArkhamCardFragment : Fragment() {
     private fun getIndependentHeight(origHeight: Int): Int {
         val dm: DisplayMetrics = resources.displayMetrics
         return Math.ceil((origHeight * dm.heightPixels) / 800.0).toInt()
+    }
+    
+    /**
+     * Try to load a fallback card image
+     */
+    private fun tryFallbackCardImage(frameLayout: FrameLayout) {
+        fragmentScope.launch {
+            withContext(Dispatchers.IO) {
+                // Try common otherworld card paths
+                val fallbackPaths = listOf(
+                    // Generic encounter card template (always present in this app's assets)
+                    "encounter/encounter_front_downtown.png",
+                    // Legacy otherworld paths kept for compatibility if assets are later added
+                    "otherworld/otherworld_front_colorless.png",
+                    "otherworld/otherworld_front_red.png"
+                )
+                
+                var loaded = false
+                for (path in fallbackPaths) {
+                    try {
+                        val inputStream = requireContext().assets.open(path)
+                        val cardBitmap = BitmapFactory.decodeStream(inputStream)
+                        inputStream.close()
+                        
+                        if (cardBitmap != null) {
+                            Log.d("ArkhamCardFragment", "Loaded fallback card bitmap from $path: ${cardBitmap.width}x${cardBitmap.height}")
+                            withContext(Dispatchers.Main) {
+                                val cardImageView = ImageView(requireContext()).apply {
+                                    setImageBitmap(cardBitmap)
+                                    scaleType = ImageView.ScaleType.FIT_XY
+                                    layoutParams = FrameLayout.LayoutParams(
+                                        FrameLayout.LayoutParams.MATCH_PARENT,
+                                        FrameLayout.LayoutParams.MATCH_PARENT
+                                    )
+                                }
+                                frameLayout.addView(cardImageView, 0)
+                                Log.d("ArkhamCardFragment", "Added fallback card image view")
+                            }
+                            loaded = true
+                            break
+                        }
+                    } catch (e: IOException) {
+                        // Try next path
+                        continue
+                    }
+                }
+                
+                if (!loaded) {
+                    Log.w("ArkhamCardFragment", "Could not load any fallback card image")
+                }
+            }
+        }
     }
 }
 

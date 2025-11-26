@@ -25,6 +25,7 @@ data class LocationData(
     val name: String,
     val buttonPath: String? = null,
     val sort: Int = 0,
+    val neiId: Long? = null,
     val expId: Long? = null
 )
 
@@ -48,7 +49,8 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
     companion object {
         private const val TAG = "UnifiedCardDB"
         private const val DATABASE_NAME = "cthulhu_companion.db"
-        private const val DATABASE_VERSION = 3
+        // Version 4: add card_to_color table so we can efficiently map Arkham other world cards to colors
+        private const val DATABASE_VERSION = 4
         
         // Singleton instance
         @Volatile
@@ -191,6 +193,11 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
     private val TABLE_LOCATION_TO_COLOR = "location_to_color"
     private val COLUMN_LTC_LOC_ID = "ltc_loc_id"
     private val COLUMN_LTC_COLOR_ID = "ltc_color_id"
+
+    // Card to Color table (for Other World cards)
+    private val TABLE_CARD_TO_COLOR = "card_to_color"
+    private val COLUMN_CTC_CARD_ID = "ctc_card_id"
+    private val COLUMN_CTC_COLOR_ID = "ctc_color_id"
     
     // Create tables SQL
     private val CREATE_TABLE_EXPANSIONS = """
@@ -303,6 +310,15 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
             FOREIGN KEY ($COLUMN_LTC_COLOR_ID) REFERENCES $TABLE_COLORS($COLUMN_COLOR_ID)
         )
     """.trimIndent()
+
+    private val CREATE_TABLE_CARD_TO_COLOR = """
+        CREATE TABLE IF NOT EXISTS $TABLE_CARD_TO_COLOR (
+            $COLUMN_CTC_CARD_ID TEXT NOT NULL,
+            $COLUMN_CTC_COLOR_ID INTEGER NOT NULL,
+            PRIMARY KEY ($COLUMN_CTC_CARD_ID, $COLUMN_CTC_COLOR_ID),
+            FOREIGN KEY ($COLUMN_CTC_COLOR_ID) REFERENCES $TABLE_COLORS($COLUMN_COLOR_ID)
+        )
+    """.trimIndent()
     
     override fun onCreate(db: SQLiteDatabase) {
         Log.d(TAG, "Creating unified database tables")
@@ -314,6 +330,7 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
         db.execSQL(CREATE_TABLE_CARD_TO_ENCOUNTER)
         db.execSQL(CREATE_TABLE_COLORS)
         db.execSQL(CREATE_TABLE_LOCATION_TO_COLOR)
+        db.execSQL(CREATE_TABLE_CARD_TO_COLOR)
         db.execSQL(CREATE_INDEX_GAME_TYPE)
         db.execSQL(CREATE_INDEX_EXPANSION)
         db.execSQL(CREATE_INDEX_REGION)
@@ -336,6 +353,11 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
             Log.d(TAG, "Adding color tables (colors, location_to_color)")
             db.execSQL(CREATE_TABLE_COLORS)
             db.execSQL(CREATE_TABLE_LOCATION_TO_COLOR)
+        }
+        if (oldVersion < 4) {
+            // Add card_to_color table
+            Log.d(TAG, "Adding card_to_color table")
+            db.execSQL(CREATE_TABLE_CARD_TO_COLOR)
         }
     }
     
@@ -533,45 +555,68 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
         rwLock.writeLock().lock()
         try {
             val db = writableDatabase
+            // Optimize for bulk inserts
+            try {
+                db.execSQL("PRAGMA synchronous = OFF")
+                db.execSQL("PRAGMA journal_mode = MEMORY")
+            } catch (e: Exception) {
+                // Ignore if pragmas fail
+            }
+            
             db.beginTransaction()
             var inserted = 0
             var ignored = 0
             var failed = 0
             try {
+                // Use prepared statement for better performance
+                val insertStmt = db.compileStatement(
+                    "INSERT OR IGNORE INTO unified_cards " +
+                    "(game_type, card_id, expansion, card_name, encountered, card_data, " +
+                    "neighborhood_id, location_id, encounter_id, region, " +
+                    "top_header, top_encounter, middle_header, middle_encounter, " +
+                    "bottom_header, bottom_encounter) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                )
+                
                 for (card in cards) {
                     try {
-                        val values = card.toContentValues()
-                        // Use INSERT OR IGNORE to handle duplicates gracefully
-                        val result = db.insertWithOnConflict(
-                            "unified_cards",
-                            null,
-                            values,
-                            SQLiteDatabase.CONFLICT_IGNORE
-                        )
+                        insertStmt.clearBindings()
+                        insertStmt.bindString(1, card.gameType.value)
+                        insertStmt.bindString(2, card.cardId)
+                        insertStmt.bindString(3, card.expansion)
+                        card.cardName?.let { insertStmt.bindString(4, it) } ?: insertStmt.bindNull(4)
+                        insertStmt.bindString(5, card.encountered ?: "NONE")
+                        card.cardData?.let { insertStmt.bindString(6, it) } ?: insertStmt.bindNull(6)
+                        card.neighborhoodId?.let { insertStmt.bindLong(7, it) } ?: insertStmt.bindNull(7)
+                        card.locationId?.let { insertStmt.bindLong(8, it) } ?: insertStmt.bindNull(8)
+                        card.encounterId?.let { insertStmt.bindLong(9, it) } ?: insertStmt.bindNull(9)
+                        card.region?.let { insertStmt.bindString(10, it) } ?: insertStmt.bindNull(10)
+                        card.topHeader?.let { insertStmt.bindString(11, it) } ?: insertStmt.bindNull(11)
+                        card.topEncounter?.let { insertStmt.bindString(12, it) } ?: insertStmt.bindNull(12)
+                        card.middleHeader?.let { insertStmt.bindString(13, it) } ?: insertStmt.bindNull(13)
+                        card.middleEncounter?.let { insertStmt.bindString(14, it) } ?: insertStmt.bindNull(14)
+                        card.bottomHeader?.let { insertStmt.bindString(15, it) } ?: insertStmt.bindNull(15)
+                        card.bottomEncounter?.let { insertStmt.bindString(16, it) } ?: insertStmt.bindNull(16)
+                        
+                        val result = insertStmt.executeInsert()
                         if (result > 0) {
                             inserted++
-                        } else if (result == -1L) {
-                            // Row was ignored due to conflict (duplicate)
+                        } else {
+                            // Row was ignored due to conflict (duplicate) or constraint violation
                             ignored++
                             if (ignored <= 5) {  // Log first 5 ignored cards
                                 Log.d(TAG, "Ignored duplicate card ${card.cardId} (gameType=${card.gameType}, expansion=${card.expansion})")
                             }
-                        } else {
-                            failed++
-                            Log.w(TAG, "Failed to insert card ${card.cardId} (gameType=${card.gameType}, expansion=${card.expansion}): insert returned $result")
                         }
                     } catch (e: Exception) {
                         failed++
-                        Log.e(TAG, "Failed to insert card ${card.cardId} (gameType=${card.gameType}, expansion=${card.expansion}): ${e.message}", e)
-                        // Log the ContentValues for debugging
-                        try {
-                            val values = card.toContentValues()
-                            Log.d(TAG, "Card ContentValues: ${values.keySet().joinToString { "$it=${values.get(it)}" }}")
-                        } catch (e2: Exception) {
-                            Log.e(TAG, "Error creating ContentValues: ${e2.message}")
+                        if (failed <= 5) {  // Log first 5 failures
+                            Log.e(TAG, "Failed to insert card ${card.cardId} (gameType=${card.gameType}, expansion=${card.expansion}): ${e.message}", e)
                         }
                     }
                 }
+                
+                insertStmt.close()
                 db.setTransactionSuccessful()
                 if (failed > 0 || ignored > 0) {
                     Log.w(TAG, "Inserted $inserted cards, ignored $ignored duplicates, failed $failed cards out of ${cards.size} total")
@@ -580,6 +625,13 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
                 }
             } finally {
                 db.endTransaction()
+                // Restore normal SQLite settings
+                try {
+                    db.execSQL("PRAGMA synchronous = NORMAL")
+                    db.execSQL("PRAGMA journal_mode = DELETE")
+                } catch (e: Exception) {
+                    // Ignore if pragmas fail
+                }
             }
             return inserted
         } finally {
@@ -954,6 +1006,49 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
     }
     
     /**
+     * Get a location by ID directly (without expansion filtering)
+     */
+    fun getLocationById(locId: Long): LocationData? {
+        rwLock.readLock().lock()
+        try {
+            val db = readableDatabase
+            val cursor = db.query(
+                TABLE_LOCATIONS,
+                arrayOf(COLUMN_LOC_ID, COLUMN_LOC_NAME, COLUMN_LOC_BUTTON_PATH, COLUMN_NEI_ID, COLUMN_EXP_ID, COLUMN_LOC_SORT),
+                "$COLUMN_LOC_ID = ?",
+                arrayOf(locId.toString()),
+                null, null, null, "1"
+            )
+            
+            cursor.use {
+                if (it.moveToFirst()) {
+                    val idIndex = it.getColumnIndexOrThrow(COLUMN_LOC_ID)
+                    val nameIndex = it.getColumnIndexOrThrow(COLUMN_LOC_NAME)
+                    val buttonPathIndex = it.getColumnIndex(COLUMN_LOC_BUTTON_PATH)
+                    val neiIdIndex = it.getColumnIndex(COLUMN_NEI_ID)
+                    val expIdIndex = it.getColumnIndex(COLUMN_EXP_ID)
+                    val sortIndex = it.getColumnIndex(COLUMN_LOC_SORT)
+                    
+                    return LocationData(
+                        id = it.getLong(idIndex),
+                        name = it.getString(nameIndex),
+                        buttonPath = it.getStringOrNull(buttonPathIndex),
+                        neiId = it.getLongOrNull(neiIdIndex),
+                        expId = it.getLongOrNull(expIdIndex),
+                        sort = if (sortIndex >= 0 && !it.isNull(sortIndex)) it.getInt(sortIndex) else 0
+                    )
+                }
+            }
+            return null
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting location by ID: ${e.message}", e)
+            return null
+        } finally {
+            rwLock.readLock().unlock()
+        }
+    }
+    
+    /**
      * Get locations for a neighborhood
      */
     fun getLocationsByNeighborhood(neiId: Long): List<LocationData> {
@@ -1026,16 +1121,17 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
                 whereClause += " AND $COLUMN_EXP_ID = 1"
             }
             
-            // Exclude specific location IDs
+            // Exclude specific location IDs (499 and 500 are special placeholders)
             if (excludeIds.isNotEmpty()) {
                 val excludePlaceholders = excludeIds.joinToString(",") { "?" }
                 whereClause += " AND $COLUMN_LOC_ID NOT IN ($excludePlaceholders)"
                 whereArgs.addAll(excludeIds.map { it.toString() })
+                Log.d(TAG, "Excluding location IDs: ${excludeIds.joinToString(", ")}")
             }
             
             val cursor = db.query(
                 TABLE_LOCATIONS,
-                arrayOf(COLUMN_LOC_ID, COLUMN_LOC_NAME, COLUMN_LOC_BUTTON_PATH, COLUMN_LOC_SORT, COLUMN_EXP_ID),
+                arrayOf(COLUMN_LOC_ID, COLUMN_LOC_NAME, COLUMN_LOC_BUTTON_PATH, COLUMN_NEI_ID, COLUMN_EXP_ID, COLUMN_LOC_SORT),
                 whereClause,
                 if (whereArgs.isNotEmpty()) whereArgs.toTypedArray() else null,
                 null, null,
@@ -1047,8 +1143,9 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
                 val idIndex = it.getColumnIndexOrThrow(COLUMN_LOC_ID)
                 val nameIndex = it.getColumnIndexOrThrow(COLUMN_LOC_NAME)
                 val buttonPathIndex = it.getColumnIndex(COLUMN_LOC_BUTTON_PATH)
-                val sortIndex = it.getColumnIndex(COLUMN_LOC_SORT)
+                val neiIdIndex = it.getColumnIndex(COLUMN_NEI_ID)
                 val expIdIndex = it.getColumnIndex(COLUMN_EXP_ID)
+                val sortIndex = it.getColumnIndex(COLUMN_LOC_SORT)
                 
                 while (it.moveToNext()) {
                     locations.add(
@@ -1056,11 +1153,26 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
                             id = it.getLong(idIndex),
                             name = it.getString(nameIndex),
                             buttonPath = it.getStringOrNull(buttonPathIndex),
-                            sort = it.getInt(sortIndex),
-                            expId = it.getLongOrNull(expIdIndex)
+                            neiId = it.getLongOrNull(neiIdIndex),
+                            expId = it.getLongOrNull(expIdIndex),
+                            sort = if (sortIndex >= 0 && !it.isNull(sortIndex)) it.getInt(sortIndex) else 0
                         )
                     )
                 }
+            }
+            Log.d(TAG, "getOtherWorldLocations: Found ${locations.size} locations with query: $whereClause, args: ${whereArgs.joinToString(", ")}")
+            if (locations.isEmpty() && expIds != null) {
+                // Log what locations exist without expansion filter
+                val allLocationsCursor = db.query(
+                    TABLE_LOCATIONS,
+                    arrayOf(COLUMN_LOC_ID, COLUMN_LOC_NAME, COLUMN_EXP_ID),
+                    "$COLUMN_NEI_ID IS NULL AND $COLUMN_LOC_ID NOT IN (?, ?)",
+                    arrayOf("499", "500"),
+                    null, null, null
+                )
+                val allCount = allLocationsCursor.count
+                allLocationsCursor.close()
+                Log.w(TAG, "No locations found with expansion filter. Total otherworld locations (excluding 499,500): $allCount")
             }
             return locations
         } catch (e: Exception) {
@@ -1187,6 +1299,69 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
             return encounters
         } catch (e: Exception) {
             Log.e(TAG, "Error getting encounters for card: ${e.message}", e)
+            return emptyList()
+        } finally {
+            rwLock.readLock().unlock()
+        }
+    }
+
+    /**
+     * Link a card to a color (used for Arkham Other World cards)
+     */
+    fun linkCardToColor(cardId: String, colorId: Long) {
+        rwLock.writeLock().lock()
+        try {
+            val db = writableDatabase
+            val values = android.content.ContentValues().apply {
+                put(COLUMN_CTC_CARD_ID, cardId)
+                put(COLUMN_CTC_COLOR_ID, colorId)
+            }
+            db.insertWithOnConflict(TABLE_CARD_TO_COLOR, null, values, SQLiteDatabase.CONFLICT_REPLACE)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error linking card $cardId to color $colorId: ${e.message}", e)
+        } finally {
+            rwLock.writeLock().unlock()
+        }
+    }
+
+    /**
+     * Get colors for a specific card (Arkham Other World helper)
+     */
+    fun getColorsForCard(cardId: String): List<OtherWorldColorData> {
+        rwLock.readLock().lock()
+        try {
+            val db = readableDatabase
+
+            val query = """
+                SELECT c.$COLUMN_COLOR_ID, c.$COLUMN_COLOR_NAME, c.$COLUMN_COLOR_BUTTON_PATH, c.$COLUMN_COLOR_EXP_ID
+                FROM $TABLE_COLORS c
+                INNER JOIN $TABLE_CARD_TO_COLOR ctc ON c.$COLUMN_COLOR_ID = ctc.$COLUMN_CTC_COLOR_ID
+                WHERE ctc.$COLUMN_CTC_CARD_ID = ?
+                ORDER BY c.$COLUMN_COLOR_ID
+            """.trimIndent()
+
+            val cursor = db.rawQuery(query, arrayOf(cardId))
+            val colors = mutableListOf<OtherWorldColorData>()
+            cursor.use {
+                val idIndex = it.getColumnIndexOrThrow(COLUMN_COLOR_ID)
+                val nameIndex = it.getColumnIndexOrThrow(COLUMN_COLOR_NAME)
+                val buttonPathIndex = it.getColumnIndex(COLUMN_COLOR_BUTTON_PATH)
+                val expIdIndex = it.getColumnIndexOrThrow(COLUMN_COLOR_EXP_ID)
+
+                while (it.moveToNext()) {
+                    colors.add(
+                        OtherWorldColorData(
+                            id = it.getLong(idIndex),
+                            name = it.getString(nameIndex),
+                            buttonPath = it.getStringOrNull(buttonPathIndex),
+                            expId = it.getLong(expIdIndex)
+                        )
+                    )
+                }
+            }
+            return colors
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting colors for card $cardId: ${e.message}", e)
             return emptyList()
         } finally {
             rwLock.readLock().unlock()

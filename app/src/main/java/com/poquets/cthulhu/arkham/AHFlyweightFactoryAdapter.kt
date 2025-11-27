@@ -377,11 +377,40 @@ class AHFlyweightFactoryAdapter private constructor(context: Context) {
      * This finds the card image path based on the card's colors matching a path's colors
      */
     fun getOtherWorldCardPathForColoredCard(cardID: Long): String? {
-        // Full color-to-path mapping via Path/ColorToPath tables is not yet implemented in the unified DB.
-        // For now, always return a generic encounter card template that exists in this app's assets so
-        // other world cards render with a proper frame instead of a plain color background.
-        android.util.Log.d("AHFlyweightFactoryAdapter", "Using generic encounter card template for otherworld card $cardID")
-        return "encounter/encounter_front_downtown.png"
+        return try {
+            val db = UnifiedCardDatabaseHelper.getInstance(appContext)
+            // Get the colors for this card
+            val colors = db.getColorsForCard(cardID.toString())
+            
+            android.util.Log.d("AHFlyweightFactoryAdapter", "Card $cardID has ${colors.size} colors: ${colors.map { "ID=${it.id}, name=${it.name}" }}")
+            
+            // Get the first color (cards typically have one primary color)
+            val colorId = colors.firstOrNull()?.id ?: 0L
+            
+            android.util.Log.d("AHFlyweightFactoryAdapter", "Using color ID $colorId for card $cardID")
+            
+            // Map color ID to the corresponding colored card path
+            // Use specific encounter card images for each color
+            val path = when (colorId.toInt()) {
+                1 -> "encounter/encounter_front_miskatonic.png"  // Yellow
+                2 -> "encounter/encounter_front_uptown.png"     // Red
+                3 -> "encounter/encounter_front_frenchhill.png"      // Blue
+                4 -> "encounter/encounter_front_merchant.png"    // Green
+                0 -> "otherworld/otherworld_front_colorless.png"  // Colorless
+                else -> {
+                    android.util.Log.w("AHFlyweightFactoryAdapter", "Unknown color ID $colorId for card $cardID, using colorless")
+                    "otherworld/otherworld_front_colorless.png"  // Fallback to colorless
+                }
+            }
+            
+            android.util.Log.d("AHFlyweightFactoryAdapter", "Returning colored card path for card $cardID (color ID $colorId): $path")
+            path
+        } catch (e: Exception) {
+            android.util.Log.e("AHFlyweightFactoryAdapter", "Error getting colored card path for card $cardID: ${e.message}", e)
+            e.printStackTrace()
+            // Fallback to colorless
+            "otherworld/otherworld_front_colorless.png"
+        }
     }
     
     /**

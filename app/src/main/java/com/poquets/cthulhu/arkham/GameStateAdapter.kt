@@ -86,18 +86,35 @@ class GameStateAdapter private constructor(context: Context) {
     fun getAppliedExpansions(): Set<Long> {
         val expansionNames = gameState.getSelectedExpansions(GameType.ARKHAM)
         
-        // Map expansion names to IDs
+        // Map expansion names to IDs (matching ArkhamInit.java exactly)
+        // ID 1 = Base
+        // ID 2 = Curse of the Dark Pharoah
+        // ID 3 = Dunwich Horror
+        // ID 4 = The King in Yellow
+        // ID 5 = Kingsport Horror
+        // ID 6 = Black Goat of the Woods
+        // ID 7 = Innsmouth Horror
+        // ID 8 = Lurker at the Threshold
+        // ID 9 = Curse of the Dark Pharoah Revised
+        // ID 10 = Miskatonic Horror
         val expansionIdMap = mapOf(
             "BASE" to 1L,
-            "Dunwich Horror" to 2L,
-            "Kingsport Horror" to 3L,
-            "Innsmouth Horror" to 4L,
-            "The Black Goat of the Woods" to 5L,
-            "The Lurker at the Threshold" to 6L,
-            "Curse of the Dark Pharaoh" to 7L,
-            "The King in Yellow" to 8L,
-            "Miskatonic Horror" to 9L,
-            "Kingsport Horror" to 10L
+            "Base" to 1L,
+            "Base Game" to 1L,
+            "Curse of the Dark Pharoah" to 2L,
+            "Curse of the Dark Pharaoh" to 2L, // Handle both spellings
+            "Dunwich Horror" to 3L,
+            "The King in Yellow" to 4L,
+            "King in Yellow" to 4L,
+            "Kingsport Horror" to 5L,
+            "Black Goat of the Woods" to 6L,
+            "The Black Goat of the Woods" to 6L,
+            "Innsmouth Horror" to 7L,
+            "Lurker at the Threshold" to 8L,
+            "The Lurker at the Threshold" to 8L,
+            "Curse of the Dark Pharoah Revised" to 9L,
+            "Curse of the Dark Pharaoh Revised" to 9L, // Handle both spellings
+            "Miskatonic Horror" to 10L
         )
         
         val expansionIds = expansionNames.mapNotNull { expansionIdMap[it] }.toMutableSet()
@@ -121,18 +138,18 @@ class GameStateAdapter private constructor(context: Context) {
         // For base game, always apply it
         val shouldApply = if (expID == 1L) true else isChecked
         
-        // Map expansion ID to name
+        // Map expansion ID to name (matching ArkhamInit.java exactly)
         val expansionNameMap = mapOf(
             1L to "BASE",
-            2L to "Dunwich Horror",
-            3L to "Kingsport Horror",
-            4L to "Innsmouth Horror",
-            5L to "The Black Goat of the Woods",
-            6L to "The Lurker at the Threshold",
-            7L to "Curse of the Dark Pharaoh",
-            8L to "The King in Yellow",
-            9L to "Miskatonic Horror",
-            10L to "Kingsport Horror"
+            2L to "Curse of the Dark Pharoah",
+            3L to "Dunwich Horror",
+            4L to "The King in Yellow",
+            5L to "Kingsport Horror",
+            6L to "Black Goat of the Woods",
+            7L to "Innsmouth Horror",
+            8L to "Lurker at the Threshold",
+            9L to "Curse of the Dark Pharoah Revised",
+            10L to "Miskatonic Horror"
         )
         
         val expansionName = expansionNameMap[expID] ?: return

@@ -64,20 +64,33 @@
 
 </LinearLayout>
 
-<!-- Gear icon in top right -->
-<ImageButton
-    android:id="@+id/settingsButton"
+<!-- Gear icon in bottom right -->
+<FrameLayout
+    android:id="@+id/settingsButtonContainer"
     android:layout_width="48dp"
     android:layout_height="48dp"
-    android:layout_gravity="top|end"
-    android:layout_marginTop="26dp"
-    android:layout_marginEnd="16dp"
-    android:layout_marginBottom="16dp"
-    android:layout_marginStart="16dp"
-    android:src="@android:drawable/ic_menu_preferences"
-    android:background="@android:color/transparent"
-    android:contentDescription="Database Settings"
-    android:tint="@color/white" />
+    android:layout_gravity="bottom|end"
+    android:layout_marginBottom="10dp"
+    android:layout_marginEnd="10dp"
+    android:clickable="true"
+    android:focusable="true"
+    android:background="?attr/selectableItemBackgroundBorderless">
+    
+    <ImageButton
+        android:id="@+id/settingsButton"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:src="@drawable/ic_settings_gear"
+        android:background="@android:color/transparent"
+        android:contentDescription="Database Settings"
+        android:padding="0dp"
+        android:scaleType="fitCenter"
+        android:adjustViewBounds="true"
+        android:tint="@color/white"
+        android:clickable="false"
+        android:focusable="false" />
+        
+</FrameLayout>
 
 </FrameLayout>
 

@@ -1,6 +1,7 @@
 package com.poquets.cthulhu.GUI
 
 import android.os.Bundle
+import android.view.View
 import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
@@ -54,8 +55,8 @@ class GameSelectionActivity : AppCompatActivity() {
             launchEldritch()
         }
         
-        // Settings/gear button
-        findViewById<ImageButton>(R.id.settingsButton).setOnClickListener {
+        // Settings/gear button - make entire container clickable
+        findViewById<View>(R.id.settingsButtonContainer).setOnClickListener {
             openDatabaseManagement()
         }
     }

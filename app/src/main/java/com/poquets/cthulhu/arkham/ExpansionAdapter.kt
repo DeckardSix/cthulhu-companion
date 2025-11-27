@@ -32,18 +32,28 @@ class ExpansionAdapter(
         if (gameState == null) return id == 1L // Base game always applied
         
         val selectedExpansions = gameState.getSelectedExpansions(GameType.ARKHAM)
-        // Map expansion ID to name
+        // Map expansion ID to name (matching ArkhamInit.java exactly)
+        // ID 1 = Base
+        // ID 2 = Curse of the Dark Pharoah
+        // ID 3 = Dunwich Horror
+        // ID 4 = The King in Yellow
+        // ID 5 = Kingsport Horror
+        // ID 6 = Black Goat of the Woods
+        // ID 7 = Innsmouth Horror
+        // ID 8 = Lurker at the Threshold
+        // ID 9 = Curse of the Dark Pharoah Revised
+        // ID 10 = Miskatonic Horror
         val expansionName = when (id) {
             1L -> "BASE"
-            2L -> "Dunwich Horror"
-            3L -> "Kingsport Horror"
-            4L -> "Innsmouth Horror"
-            5L -> "The Black Goat of the Woods"
-            6L -> "The Lurker at the Threshold"
-            7L -> "Curse of the Dark Pharaoh"
-            8L -> "The King in Yellow"
-            9L -> "Miskatonic Horror"
-            10L -> "Kingsport Horror"
+            2L -> "Curse of the Dark Pharoah"
+            3L -> "Dunwich Horror"
+            4L -> "The King in Yellow"
+            5L -> "Kingsport Horror"
+            6L -> "Black Goat of the Woods"
+            7L -> "Innsmouth Horror"
+            8L -> "Lurker at the Threshold"
+            9L -> "Curse of the Dark Pharoah Revised"
+            10L -> "Miskatonic Horror"
             else -> name
         }
         return selectedExpansions.contains(expansionName) || selectedExpansions.contains(name)

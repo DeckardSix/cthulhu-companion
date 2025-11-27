@@ -206,7 +206,6 @@ class ArkhamCardFragment : Fragment() {
                     if (cardBitmap != null) {
                         Log.d("ArkhamCardFragment", "Loaded card bitmap: ${cardBitmap.width}x${cardBitmap.height}")
                         withContext(Dispatchers.Main) {
-                            // Display card normally without any modifications
                             val cardImageView = ImageView(requireContext()).apply {
                                 setImageBitmap(cardBitmap)
                                 scaleType = ImageView.ScaleType.FIT_XY
@@ -214,9 +213,30 @@ class ArkhamCardFragment : Fragment() {
                                     FrameLayout.LayoutParams.MATCH_PARENT,
                                     FrameLayout.LayoutParams.MATCH_PARENT
                                 )
+                                // Make otherworld cards semi-transparent so color overlay shows through
+                                if (isOtherWorld) {
+                                    alpha = 0.5f // 50% opacity - color overlay will be visible
+                                    Log.d("ArkhamCardFragment", "Set otherworld card alpha to 0.5")
+                                }
                             }
                             // Insert at position 0 so it's behind the scroll view
                             frameLayout.addView(cardImageView, 0)
+                            
+                            // Add color overlay for otherworld cards to tint them with their color
+                            if (isOtherWorld && backgroundColor != android.graphics.Color.TRANSPARENT) {
+                                val colorOverlay = View(requireContext()).apply {
+                                    setBackgroundColor(backgroundColor)
+                                    alpha = 0.5f // 50% opacity overlay to tint the card
+                                    layoutParams = FrameLayout.LayoutParams(
+                                        FrameLayout.LayoutParams.MATCH_PARENT,
+                                        FrameLayout.LayoutParams.MATCH_PARENT
+                                    )
+                                }
+                                // Add after card image but before scroll view
+                                frameLayout.addView(colorOverlay, 1)
+                                Log.d("ArkhamCardFragment", "Added color overlay for otherworld card: ${String.format("#%08X", backgroundColor)}")
+                            }
+                            
                             Log.d("ArkhamCardFragment", "Added card image view")
                             
                             // Add expansion icon at bottom left for both other world and location cards
@@ -427,7 +447,27 @@ class ArkhamCardFragment : Fragment() {
                         if (cardBitmap != null) {
                             Log.d("ArkhamCardFragment", "Loaded fallback card bitmap from $path: ${cardBitmap.width}x${cardBitmap.height}")
                             withContext(Dispatchers.Main) {
-                                // Display card normally without any modifications
+                                // Get background color for overlay if otherworld
+                                val overlayColor = if (isOtherWorld) {
+                                    withContext(Dispatchers.IO) {
+                                        val cardColors = otherWorldCard?.getOtherWorldColors() ?: emptyList()
+                                        val colorToUse = cardColors.firstOrNull()
+                                        if (colorToUse != null) {
+                                            when (colorToUse.getID().toInt()) {
+                                                1 -> android.graphics.Color.parseColor("#FFD700") // Yellow
+                                                2 -> android.graphics.Color.parseColor("#DC143C") // Red
+                                                3 -> android.graphics.Color.parseColor("#4169E1") // Blue
+                                                4 -> android.graphics.Color.parseColor("#228B22") // Green
+                                                else -> android.graphics.Color.TRANSPARENT
+                                            }
+                                        } else {
+                                            android.graphics.Color.TRANSPARENT
+                                        }
+                                    }
+                                } else {
+                                    android.graphics.Color.TRANSPARENT
+                                }
+                                
                                 val cardImageView = ImageView(requireContext()).apply {
                                     setImageBitmap(cardBitmap)
                                     scaleType = ImageView.ScaleType.FIT_XY
@@ -435,8 +475,29 @@ class ArkhamCardFragment : Fragment() {
                                         FrameLayout.LayoutParams.MATCH_PARENT,
                                         FrameLayout.LayoutParams.MATCH_PARENT
                                     )
+                                    // Make otherworld cards semi-transparent so color overlay shows through
+                                    if (isOtherWorld) {
+                                        alpha = 0.5f // 50% opacity - color overlay will be visible
+                                        Log.d("ArkhamCardFragment", "Set fallback otherworld card alpha to 0.5")
+                                    }
                                 }
                                 frameLayout.addView(cardImageView, 0)
+                                
+                                // Add color overlay for otherworld cards to tint them with their color
+                                if (isOtherWorld && overlayColor != android.graphics.Color.TRANSPARENT) {
+                                    val colorOverlay = View(requireContext()).apply {
+                                        setBackgroundColor(overlayColor)
+                                        alpha = 0.5f // 50% opacity overlay to tint the card
+                                        layoutParams = FrameLayout.LayoutParams(
+                                            FrameLayout.LayoutParams.MATCH_PARENT,
+                                            FrameLayout.LayoutParams.MATCH_PARENT
+                                        )
+                                    }
+                                    // Add after card image but before scroll view
+                                    frameLayout.addView(colorOverlay, 1)
+                                    Log.d("ArkhamCardFragment", "Added fallback color overlay for otherworld card: ${String.format("#%08X", overlayColor)}")
+                                }
+                                
                                 Log.d("ArkhamCardFragment", "Added fallback card image view")
                                 
                                 // Add expansion icon at bottom left for both other world and location cards

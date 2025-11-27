@@ -57,6 +57,9 @@ class LocationHxActivity : AppCompatActivity() {
             val statusBarHeight = getStatusBarHeight()
             rootLayout?.setPadding(0, statusBarHeight, 0, 0)
             
+            // Set background to cthulhu_background (not a color)
+            rootLayout?.setBackgroundResource(R.drawable.cthulhu_background)
+            
             val viewpager = findViewById<ViewPager2>(R.id.viewpager)
             encAdapter = EncounterHxAdapter(this, encHx.toMutableList())
             viewpager.adapter = encAdapter

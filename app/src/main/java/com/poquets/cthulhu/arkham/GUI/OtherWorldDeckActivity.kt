@@ -36,6 +36,9 @@ class OtherWorldDeckActivity : AppCompatActivity() {
         val statusBarHeight = getStatusBarHeight()
         rootLayout.setPadding(0, statusBarHeight, 0, 0)
         
+        // Set background to cthulhu_background (not a color)
+        rootLayout.setBackgroundResource(R.drawable.cthulhu_background)
+        
         // Add back button positioned like question mark in expansion selector
         addBackButton()
         

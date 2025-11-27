@@ -96,12 +96,27 @@ class AHFlyweightFactoryAdapter private constructor(context: Context) {
                 "Miskatonic Horror" to 10L
             )
             
+            // Map expansion IDs to icon paths (matching ArkhamInit.java)
+            val expansionIconPathMap = mapOf(
+                1L to null, // Base has no icon
+                2L to "encounter/icon_exp_dp.png",
+                3L to "encounter/icon_exp_dh.png",
+                4L to "encounter/icon_exp_ky.png",
+                5L to "encounter/icon_exp_kh.png",
+                6L to "encounter/icon_exp_bg.png",
+                7L to "encounter/icon_exp_ih.png",
+                8L to "encounter/icon_exp_lt.png",
+                9L to "encounter/icon_exp_dpr.png",
+                10L to "encounter/icon_exp_mh.png"
+            )
+            
             // Create ExpansionAdapter for each expansion found in database
             for (expansionName in expansions) {
                 val expID = expansionIdMap[expansionName]
                 if (expID != null) {
-                    // Use the original name from database, but map to correct ID
-                    expansionMap!![expID] = ExpansionAdapter(expID, expansionName, null)
+                    // Use the original name from database, but map to correct ID and icon path
+                    val iconPath = expansionIconPathMap[expID]
+                    expansionMap!![expID] = ExpansionAdapter(expID, expansionName, iconPath)
                 } else {
                     // If name doesn't match, try to find by partial match or use a default ID
                     android.util.Log.w("AHFlyweightFactoryAdapter", "Unknown expansion name: $expansionName")
@@ -111,7 +126,8 @@ class AHFlyweightFactoryAdapter private constructor(context: Context) {
                         it.key.contains(expansionName, ignoreCase = true)
                     }?.value
                     if (matchedId != null) {
-                        expansionMap!![matchedId] = ExpansionAdapter(matchedId, expansionName, null)
+                        val iconPath = expansionIconPathMap[matchedId]
+                        expansionMap!![matchedId] = ExpansionAdapter(matchedId, expansionName, iconPath)
                     }
                 }
             }
@@ -138,8 +154,9 @@ class AHFlyweightFactoryAdapter private constructor(context: Context) {
             
             for ((expId, expName) in allExpansions) {
                 if (!expansionMap!!.containsKey(expId)) {
-                    expansionMap!![expId] = ExpansionAdapter(expId, expName, null)
-                    android.util.Log.d("AHFlyweightFactoryAdapter", "Added missing expansion: $expName (ID=$expId)")
+                    val iconPath = expansionIconPathMap[expId]
+                    expansionMap!![expId] = ExpansionAdapter(expId, expName, iconPath)
+                    android.util.Log.d("AHFlyweightFactoryAdapter", "Added missing expansion: $expName (ID=$expId, iconPath=$iconPath)")
                 }
             }
         }

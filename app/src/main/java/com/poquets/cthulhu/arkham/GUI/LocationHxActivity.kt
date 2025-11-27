@@ -503,17 +503,25 @@ class LocationHxActivity : AppCompatActivity() {
                     else -> emptyList()
                 }
                 
+                Log.d("LocationHxActivity", "Overlaying expansion icons for card. Found ${expIds.size} expansion IDs: $expIds")
+                
                 for (expId in expIds) {
                     val expansion = AHFlyweightFactory.INSTANCE.getExpansion(expId)
                     val path = expansion?.getExpansionIconPath()
+                    
+                    Log.d("LocationHxActivity", "Expansion ID $expId: path=$path, name=${expansion?.getName()}")
                     
                     var expBmp: Bitmap? = null
                     if (path != null) {
                         try {
                             expBmp = BitmapFactory.decodeStream(context.assets.open(path))
+                            Log.d("LocationHxActivity", "Loaded expansion icon from $path: ${expBmp?.width}x${expBmp?.height}")
                         } catch (e: IOException) {
+                            Log.w("LocationHxActivity", "Could not load expansion icon from $path: ${e.message}")
                             expBmp = null
                         }
+                    } else {
+                        Log.w("LocationHxActivity", "No expansion icon path for expansion ID $expId")
                     }
                     
                     retBmp = overlay(retBmp, expBmp, totalWidth + 10)
@@ -525,23 +533,40 @@ class LocationHxActivity : AppCompatActivity() {
                 return retBmp
             }
             
-            private fun overlay(bmp1: Bitmap, bmp2: Bitmap?, rightMargin: Int): Bitmap {
+            private fun overlay(bmp1: Bitmap, bmp2: Bitmap?, leftMargin: Int): Bitmap {
                 if (bmp2 == null) {
+                    Log.d("LocationHxActivity", "overlay: bmp2 is null, returning original bitmap")
                     return bmp1
                 }
+                
+                Log.d("LocationHxActivity", "overlay: bmp1=${bmp1.width}x${bmp1.height}, bmp2=${bmp2.width}x${bmp2.height}, leftMargin=$leftMargin")
                 
                 val bmOverlay = Bitmap.createBitmap(bmp1.width, bmp1.height, bmp1.config ?: Bitmap.Config.ARGB_8888)
                 val canvas = Canvas(bmOverlay)
                 canvas.drawBitmap(bmp1, 0f, 0f, null)
+                
                 val mtx = Matrix()
                 val resizeWidthPercentage = bmp1.width / 305.0f
-                val top = bmp1.height - (bmp2.height + 10) * resizeWidthPercentage
-                val left = bmp1.width - (bmp2.width + rightMargin) * resizeWidthPercentage
+                Log.d("LocationHxActivity", "overlay: resizeWidthPercentage=$resizeWidthPercentage")
+                
+                // Place icon at bottom left (10dp from bottom, 10dp + leftMargin from left)
+                // The original code places on bottom right, but user requested bottom left
+                val scaledIconHeight = bmp2.height * resizeWidthPercentage
+                val scaledIconWidth = bmp2.width * resizeWidthPercentage
+                val top = bmp1.height - scaledIconHeight - (10 * resizeWidthPercentage)
+                val left = 10 * resizeWidthPercentage + (leftMargin * resizeWidthPercentage)
+                
+                Log.d("LocationHxActivity", "overlay: scaled icon size=${scaledIconWidth}x${scaledIconHeight}, position=($left, $top)")
+                
+                // Scale first, then translate
                 mtx.setScale(resizeWidthPercentage, resizeWidthPercentage)
                 mtx.postTranslate(left, top)
+                
                 val paint = Paint()
                 paint.isFilterBitmap = true
                 canvas.drawBitmap(bmp2, mtx, paint)
+                
+                Log.d("LocationHxActivity", "Overlaid expansion icon successfully at position ($left, $top) with scale $resizeWidthPercentage")
                 return bmOverlay
             }
             

@@ -766,6 +766,39 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
     }
     
     /**
+     * Get all cards with a specific card ID (across all expansions)
+     * This is needed because a card can belong to multiple expansions
+     */
+    fun getCardsByCardId(gameType: GameType, cardId: String): List<UnifiedCard> {
+        rwLock.readLock().lock()
+        try {
+            val db = readableDatabase
+            val cursor = db.query(
+                TABLE_CARDS,
+                null,
+                "$COLUMN_GAME_TYPE = ? AND $COLUMN_CARD_ID = ?",
+                arrayOf(gameType.value, cardId),
+                null,
+                null,
+                null,
+                null
+            )
+            
+            val cards = mutableListOf<UnifiedCard>()
+            cursor.use {
+                while (it.moveToNext()) {
+                    createCardFromCursor(it)?.let { card ->
+                        cards.add(card)
+                    }
+                }
+            }
+            return cards
+        } finally {
+            rwLock.readLock().unlock()
+        }
+    }
+    
+    /**
      * Get all cards for a specific game type
      */
     fun getCardsByGameType(gameType: GameType): List<UnifiedCard> {

@@ -556,22 +556,36 @@ class AHFlyweightFactoryAdapter private constructor(context: Context) {
     
     /**
      * Get expansion IDs for a card (compatible with AHFlyweightFactory.getExpansionsForCard())
+     * 
+     * IMPORTANT: A card can belong to multiple expansions. The unified database stores
+     * this as multiple card entries (one per expansion). We need to query ALL cards with
+     * this cardID and return ALL their expansion IDs, not just the first one.
      */
     fun getExpansionsForCard(cardID: Long): List<Long> {
         return runBlocking {
             withContext(Dispatchers.IO) {
                 val db = UnifiedCardDatabaseHelper.getInstance(appContext)
-                val card = db.getCard(GameType.ARKHAM, cardID.toString())
                 
-                if (card != null) {
-                    val expansionName = card.expansion
-                    val expansion = getExpansions().find { it.getName() == expansionName }
-                    if (expansion != null) {
-                        listOf(expansion.getID())
+                // Query ALL cards with this cardID (a card can belong to multiple expansions)
+                // This matches the original CardToExpansion table behavior
+                val cards = db.getCardsByCardId(GameType.ARKHAM, cardID.toString())
+                
+                if (cards.isNotEmpty()) {
+                    val expansions = getExpansions()
+                    val expIds = cards.mapNotNull { card ->
+                        val expansion = expansions.find { it.getName() == card.expansion }
+                        expansion?.getID()
+                    }.distinct()
+                    
+                    if (expIds.isNotEmpty()) {
+                        android.util.Log.d("AHFlyweightFactoryAdapter", "Card $cardID belongs to expansions: $expIds")
+                        expIds
                     } else {
+                        android.util.Log.w("AHFlyweightFactoryAdapter", "Card $cardID has no valid expansion IDs, defaulting to BASE")
                         listOf(1L) // Default to base game
                     }
                 } else {
+                    android.util.Log.w("AHFlyweightFactoryAdapter", "Card $cardID not found in database")
                     emptyList()
                 }
             }

@@ -450,6 +450,28 @@ class LocationHxActivity : AppCompatActivity() {
                 if (theCard != null) {
                     CoroutineScope(Dispatchers.Main).launch {
                         try {
+                            // Get expansion IDs first (before loading card image)
+                            // This ensures they're available when we overlay
+                            val expIds = withContext(Dispatchers.IO) {
+                                when (theCard) {
+                                    is NeighborhoodCardAdapter -> {
+                                        Log.d("LocationHxActivity", "Getting expansion IDs for NeighborhoodCardAdapter (card ${theCard.getID()})")
+                                        // Use suspend function to avoid runBlocking issues
+                                        theCard.getExpIDsSuspend()
+                                    }
+                                    is OtherWorldCardAdapter -> {
+                                        Log.d("LocationHxActivity", "Getting expansion IDs for OtherWorldCardAdapter (card ${theCard.getID()})")
+                                        theCard.getExpIDs()
+                                    }
+                                    else -> {
+                                        Log.w("LocationHxActivity", "Unknown card type: ${theCard.javaClass.simpleName}")
+                                        emptyList()
+                                    }
+                                }
+                            }
+                            
+                            Log.d("LocationHxActivity", "Retrieved ${expIds.size} expansion IDs: $expIds")
+                            
                             val cardPath = withContext(Dispatchers.IO) {
                                 when (theCard) {
                                     is NeighborhoodCardAdapter -> theCard.getCardPath()
@@ -473,9 +495,10 @@ class LocationHxActivity : AppCompatActivity() {
                                 }
                                 
                                 if (front != null) {
-                                    val result = overlayCard(front, theCard)
+                                    // Overlay with the pre-retrieved expansion IDs
+                                    val result = overlayCardWithExpIds(front, expIds)
                                     scrollView.background = android.graphics.drawable.BitmapDrawable(context.resources, result)
-                                    Log.d("LocationHxActivity", "Set card background for encounter ${selectedEncounter?.getID()}")
+                                    Log.d("LocationHxActivity", "Set card background with expansion icons for encounter ${selectedEncounter?.getID()}")
                                 } else {
                                     Log.w("LocationHxActivity", "Could not load card image for encounter ${selectedEncounter?.getID()}")
                                 }
@@ -483,7 +506,7 @@ class LocationHxActivity : AppCompatActivity() {
                                 Log.w("LocationHxActivity", "No card path for encounter ${selectedEncounter?.getID()}")
                             }
                         } catch (e: Exception) {
-                            Log.w("LocationHxActivity", "Error loading card image: ${e.message}")
+                            Log.w("LocationHxActivity", "Error loading card image: ${e.message}", e)
                         }
                     }
                 }
@@ -494,34 +517,40 @@ class LocationHxActivity : AppCompatActivity() {
             }
             
             private fun overlayCard(bmp1: Bitmap, card: Any): Bitmap {
-                var retBmp = bmp1
-                var totalWidth = 0
-                
                 val expIds = when (card) {
                     is NeighborhoodCardAdapter -> card.getExpIDs()
                     is OtherWorldCardAdapter -> card.getExpIDs()
                     else -> emptyList()
                 }
+                return overlayCardWithExpIds(bmp1, expIds)
+            }
+            
+            private fun overlayCardWithExpIds(bmp1: Bitmap, expIds: List<Long>): Bitmap {
+                var retBmp = bmp1
+                var totalWidth = 0
                 
                 Log.d("LocationHxActivity", "Overlaying expansion icons for card. Found ${expIds.size} expansion IDs: $expIds")
                 
                 for (expId in expIds) {
+                    // Use checkbox _on.png icons for all expansions (including BASE)
+                    // These already exist in app/src/main/assets/checkbox
                     val expansion = AHFlyweightFactory.INSTANCE.getExpansion(expId)
-                    val path = expansion?.getExpansionIconPath()
+                    val iconPath = expansion?.getCheckboxOnPath()
                     
-                    Log.d("LocationHxActivity", "Expansion ID $expId: path=$path, name=${expansion?.getName()}")
+                    if (iconPath == null) {
+                        Log.w("LocationHxActivity", "No checkbox icon path for expansion ID $expId")
+                        continue
+                    }
+                    
+                    Log.d("LocationHxActivity", "Expansion ID $expId: using checkbox icon path=$iconPath, name=${expansion?.getName()}")
                     
                     var expBmp: Bitmap? = null
-                    if (path != null) {
-                        try {
-                            expBmp = BitmapFactory.decodeStream(context.assets.open(path))
-                            Log.d("LocationHxActivity", "Loaded expansion icon from $path: ${expBmp?.width}x${expBmp?.height}")
-                        } catch (e: IOException) {
-                            Log.w("LocationHxActivity", "Could not load expansion icon from $path: ${e.message}")
-                            expBmp = null
-                        }
-                    } else {
-                        Log.w("LocationHxActivity", "No expansion icon path for expansion ID $expId")
+                    try {
+                        expBmp = BitmapFactory.decodeStream(context.assets.open(iconPath))
+                        Log.d("LocationHxActivity", "Loaded expansion icon from $iconPath: ${expBmp?.width}x${expBmp?.height}")
+                    } catch (e: IOException) {
+                        Log.w("LocationHxActivity", "Could not load expansion icon from $iconPath: ${e.message}")
+                        expBmp = null
                     }
                     
                     retBmp = overlay(retBmp, expBmp, totalWidth + 10)
@@ -533,13 +562,13 @@ class LocationHxActivity : AppCompatActivity() {
                 return retBmp
             }
             
-            private fun overlay(bmp1: Bitmap, bmp2: Bitmap?, leftMargin: Int): Bitmap {
+            private fun overlay(bmp1: Bitmap, bmp2: Bitmap?, rightMargin: Int): Bitmap {
                 if (bmp2 == null) {
                     Log.d("LocationHxActivity", "overlay: bmp2 is null, returning original bitmap")
                     return bmp1
                 }
                 
-                Log.d("LocationHxActivity", "overlay: bmp1=${bmp1.width}x${bmp1.height}, bmp2=${bmp2.width}x${bmp2.height}, leftMargin=$leftMargin")
+                Log.d("LocationHxActivity", "overlay: bmp1=${bmp1.width}x${bmp1.height}, bmp2=${bmp2.width}x${bmp2.height}, rightMargin=$rightMargin")
                 
                 val bmOverlay = Bitmap.createBitmap(bmp1.width, bmp1.height, bmp1.config ?: Bitmap.Config.ARGB_8888)
                 val canvas = Canvas(bmOverlay)
@@ -549,12 +578,13 @@ class LocationHxActivity : AppCompatActivity() {
                 val resizeWidthPercentage = bmp1.width / 305.0f
                 Log.d("LocationHxActivity", "overlay: resizeWidthPercentage=$resizeWidthPercentage")
                 
-                // Place icon at bottom left (10dp from bottom, 10dp + leftMargin from left)
-                // The original code places on bottom right, but user requested bottom left
+                // Place icon at bottom LEFT (matching user's request, not the original bottom right)
+                // Original code: left = bmp1.width - (bmp2.width + rightMargin) * resizeWidthPercentage (bottom right)
+                // User requested: bottom left
                 val scaledIconHeight = bmp2.height * resizeWidthPercentage
                 val scaledIconWidth = bmp2.width * resizeWidthPercentage
                 val top = bmp1.height - scaledIconHeight - (10 * resizeWidthPercentage)
-                val left = 10 * resizeWidthPercentage + (leftMargin * resizeWidthPercentage)
+                val left = (10 + rightMargin) * resizeWidthPercentage
                 
                 Log.d("LocationHxActivity", "overlay: scaled icon size=${scaledIconWidth}x${scaledIconHeight}, position=($left, $top)")
                 

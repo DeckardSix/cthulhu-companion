@@ -82,36 +82,29 @@ class NeighborhoodCardAdapter(
             return listOf(1L) // Default to base game
         }
         
-        // Get expansion ID from the neighborhood (neighborhoods have exp_id in the database)
-        // This is more reliable than getting it from the card
+        // Use runBlocking for synchronous call (for compatibility with existing code)
+        // But prefer using getExpIDsSuspend() when called from coroutines
         return runBlocking {
-            withContext(Dispatchers.IO) {
-                val db = UnifiedCardDatabaseHelper.getInstance(context!!)
-                val expId = db.getExpansionIdForNeighborhood(neighborhoodId)
-                
-                if (expId != null && expId > 0) {
-                    android.util.Log.d("NeighborhoodCardAdapter", "Found expansion ID $expId for neighborhood $neighborhoodId (card $cardId)")
-                    listOf(expId)
-                } else {
-                    android.util.Log.w("NeighborhoodCardAdapter", "Could not find expansion ID for neighborhood $neighborhoodId (card $cardId), trying card expansion")
-                    
-                    // Fallback: try to get expansion from card
-                    val cardToUse = unifiedCard ?: db.getCard(GameType.ARKHAM, cardId.toString())
-                    if (cardToUse != null) {
-                        val expansionName = cardToUse.expansion
-                        val expansion = AHFlyweightFactory.INSTANCE.getExpansions().find { it.getName() == expansionName }
-                        if (expansion != null) {
-                            android.util.Log.d("NeighborhoodCardAdapter", "Found expansion ID ${expansion.getID()} from card for card $cardId")
-                            listOf(expansion.getID())
-                        } else {
-                            android.util.Log.w("NeighborhoodCardAdapter", "Expansion '$expansionName' not found, returning base game")
-                            listOf(1L)
-                        }
-                    } else {
-                        android.util.Log.w("NeighborhoodCardAdapter", "Could not load card or neighborhood expansion, returning base game")
-                        listOf(1L) // Default to base game
-                    }
-                }
+            getExpIDsSuspend()
+        }
+    }
+    
+    suspend fun getExpIDsSuspend(): List<Long> {
+        if (context == null) {
+            android.util.Log.d("NeighborhoodCardAdapter", "Context is null for card $cardId, returning base game")
+            return listOf(1L) // Default to base game
+        }
+        
+        // Use AHFlyweightFactory.getExpansionsForCard() - same as original ACard.getExpIDs()
+        // This gets the expansion from the card itself (CardToExpansion table), not from the neighborhood
+        return withContext(Dispatchers.IO) {
+            val expIds = AHFlyweightFactory.INSTANCE.getExpansionsForCard(cardId)
+            if (expIds.isNotEmpty()) {
+                android.util.Log.d("NeighborhoodCardAdapter", "Found ${expIds.size} expansion IDs for card $cardId: $expIds")
+                expIds
+            } else {
+                android.util.Log.w("NeighborhoodCardAdapter", "No expansion IDs found for card $cardId, returning base game")
+                listOf(1L) // Default to base game
             }
         }
     }

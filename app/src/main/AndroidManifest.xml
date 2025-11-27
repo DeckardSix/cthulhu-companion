@@ -16,7 +16,9 @@
             android:name=".GUI.GameSelectionActivity"
             android:exported="true"
             android:theme="@style/Theme.CthulhuCompanion"
-            android:screenOrientation="portrait">
+            android:screenOrientation="portrait"
+            android:launchMode="singleTask"
+            android:clearTaskOnLaunch="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

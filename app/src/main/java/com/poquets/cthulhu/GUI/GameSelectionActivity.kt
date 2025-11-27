@@ -20,6 +20,17 @@ class GameSelectionActivity : AppCompatActivity() {
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Ensure we're starting fresh - if we were restored from a previous state,
+        // clear any activities on top of us
+        if (intent.flags and android.content.Intent.FLAG_ACTIVITY_BROUGHT_TO_FRONT != 0) {
+            // If we were brought to front, ensure we're the root activity
+            if (!isTaskRoot) {
+                finish()
+                return
+            }
+        }
+        
         setContentView(R.layout.activity_game_selection)
         
         setupGameButtons()

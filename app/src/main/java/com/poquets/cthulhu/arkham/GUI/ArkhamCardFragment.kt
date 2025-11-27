@@ -5,6 +5,7 @@ import android.graphics.Typeface
 import android.os.Bundle
 import android.util.DisplayMetrics
 import android.util.Log
+import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -215,6 +216,9 @@ class ArkhamCardFragment : Fragment() {
                             // Insert at position 0 so it's behind the scroll view
                             frameLayout.addView(cardImageView, 0)
                             Log.d("ArkhamCardFragment", "Added card image view")
+                            
+                            // Add expansion icon at bottom left for both other world and location cards
+                            addExpansionIcon(frameLayout)
                         }
                     } else {
                         Log.w("ArkhamCardFragment", "Card bitmap is null for path: $cardPath")
@@ -236,6 +240,20 @@ class ArkhamCardFragment : Fragment() {
         val scrollView = inflater.inflate(R.layout.cardlistitem, frameLayout, false) as ScrollView
         // Remove the default background so card image and color show through
         scrollView.background = null
+        // Ensure ScrollView doesn't block the expansion icon
+        scrollView.elevation = 0f
+        // Add bottom padding to leave space for expansion icon (48dp icon + 16dp margin = 64dp)
+        val iconSpace = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            64f,
+            resources.displayMetrics
+        ).toInt()
+        scrollView.setPadding(
+            scrollView.paddingLeft,
+            scrollView.paddingTop,
+            scrollView.paddingRight,
+            scrollView.paddingBottom + iconSpace
+        )
         val cardContents = scrollView.findViewById<LinearLayout>(R.id.card_contents)
         // Make card contents background transparent too
         cardContents?.background = null
@@ -422,6 +440,9 @@ class ArkhamCardFragment : Fragment() {
                                 }
                                 frameLayout.addView(cardImageView, 0)
                                 Log.d("ArkhamCardFragment", "Added fallback card image view")
+                                
+                                // Add expansion icon at bottom left for both other world and location cards
+                                addExpansionIcon(frameLayout)
                             }
                             loaded = true
                             break
@@ -435,6 +456,164 @@ class ArkhamCardFragment : Fragment() {
                 if (!loaded) {
                     Log.w("ArkhamCardFragment", "Could not load any fallback card image")
                 }
+            }
+        }
+    }
+    
+    /**
+     * Add expansion icon to the bottom left of cards (both other world and location cards)
+     */
+    private fun addExpansionIcon(frameLayout: FrameLayout) {
+        fragmentScope.launch {
+            try {
+                // Get expansion ID from the card (works for both other world and neighborhood cards)
+                val expIds = withContext(Dispatchers.IO) {
+                    if (isOtherWorld) {
+                        otherWorldCard?.getExpIDs() ?: emptyList()
+                    } else {
+                        card?.getExpIDs() ?: emptyList()
+                    }
+                }
+                
+                Log.d("ArkhamCardFragment", "Found ${expIds.size} expansion IDs: $expIds for ${if (isOtherWorld) "other world" else "location"} card")
+                
+                if (expIds.isEmpty()) {
+                    Log.d("ArkhamCardFragment", "No expansion IDs found for card")
+                    return@launch
+                }
+                
+                // Use the first expansion ID (cards typically belong to one primary expansion)
+                var expId = expIds.first()
+                
+                Log.d("ArkhamCardFragment", "Raw expansion ID from getExpIDs(): $expId")
+                
+                // CRITICAL FIX: Ensure expansion ID is in valid range (1-10)
+                // The database might have different IDs, but ExpansionAdapter only supports 1-10
+                if (expId < 1 || expId > 10) {
+                    Log.w("ArkhamCardFragment", "Expansion ID $expId is out of range (1-10), using base game (ID=1)")
+                    expId = 1L
+                }
+                
+                // DIRECT FIX: Use ExpansionAdapter.getCheckboxOnPath() directly with the ID
+                // This works for all IDs 1-10 without needing to look up the expansion
+                // This is more reliable than looking up the expansion in the map
+                val tempExpansion = ExpansionAdapter(expId, "Expansion $expId", null)
+                val iconPath = tempExpansion.getCheckboxOnPath()
+                
+                Log.d("ArkhamCardFragment", "Using expansion icon path: $iconPath for expansion ID $expId")
+                Log.d("ArkhamCardFragment", "ExpansionAdapter.getCheckboxOnPath() returned: $iconPath for ID $expId")
+                
+                // Verify the path is correct
+                if (iconPath == "checkbox/btn_dh_check_on.png" && expId != 3L) {
+                    Log.w("ArkhamCardFragment", "WARNING: Got default icon path (btn_dh_check_on.png) for non-Dunwich expansion ID $expId")
+                }
+                
+                loadAndAddIcon(frameLayout, iconPath, expId)
+            } catch (e: Exception) {
+                Log.w("ArkhamCardFragment", "Error adding expansion icon: ${e.message}", e)
+            }
+        }
+    }
+    
+    /**
+     * Helper method to load and add the expansion icon to the frame layout
+     */
+    private fun loadAndAddIcon(frameLayout: FrameLayout, iconPath: String, expId: Long) {
+        fragmentScope.launch {
+            try {
+                // Load icon bitmap
+                val iconBitmap = withContext(Dispatchers.IO) {
+                    try {
+                        Log.d("ArkhamCardFragment", "Attempting to load icon from assets: $iconPath")
+                        val inputStream = requireContext().assets.open(iconPath)
+                        val opts = BitmapFactory.Options().apply {
+                            inScaled = true
+                            inDensity = 120 // DisplayMetrics.DENSITY_MEDIUM
+                            inTargetDensity = requireContext().resources.displayMetrics.densityDpi
+                        }
+                        val bitmap = BitmapFactory.decodeStream(inputStream, null, opts)
+                        inputStream.close()
+                        if (bitmap != null) {
+                            Log.d("ArkhamCardFragment", "Successfully loaded icon bitmap: ${bitmap.width}x${bitmap.height} from $iconPath")
+                        } else {
+                            Log.w("ArkhamCardFragment", "BitmapFactory returned null for $iconPath")
+                        }
+                        bitmap
+                    } catch (e: IOException) {
+                        Log.e("ArkhamCardFragment", "Could not load expansion icon from $iconPath: ${e.message}", e)
+                        // List available checkbox files for debugging
+                        try {
+                            val checkboxFiles = requireContext().assets.list("checkbox")
+                            Log.d("ArkhamCardFragment", "Available checkbox files: ${checkboxFiles?.joinToString(", ")}")
+                        } catch (e2: Exception) {
+                            Log.w("ArkhamCardFragment", "Could not list checkbox directory: ${e2.message}")
+                        }
+                        null
+                    }
+                }
+                
+                if (iconBitmap != null) {
+                    withContext(Dispatchers.Main) {
+                        // Create ImageView for expansion icon at bottom left
+                        val iconSize = TypedValue.applyDimension(
+                            TypedValue.COMPLEX_UNIT_DIP,
+                            48f, // 48dp icon size
+                            requireContext().resources.displayMetrics
+                        ).toInt()
+                        
+                        val expansionIcon = ImageView(requireContext()).apply {
+                            setImageBitmap(iconBitmap)
+                            scaleType = ImageView.ScaleType.FIT_CENTER
+                            elevation = 20f // High elevation to ensure icon is above ScrollView
+                            // Make sure icon is clickable and focusable so it's in the touch hierarchy
+                            isClickable = false
+                            isFocusable = false
+                            layoutParams = FrameLayout.LayoutParams(
+                                iconSize,
+                                iconSize
+                            ).apply {
+                                gravity = android.view.Gravity.BOTTOM or android.view.Gravity.START
+                                setMargins(
+                                    TypedValue.applyDimension(
+                                        TypedValue.COMPLEX_UNIT_DIP,
+                                        16f,
+                                        requireContext().resources.displayMetrics
+                                    ).toInt(), // 16dp left margin
+                                    0,
+                                    0,
+                                    TypedValue.applyDimension(
+                                        TypedValue.COMPLEX_UNIT_DIP,
+                                        16f,
+                                        requireContext().resources.displayMetrics
+                                    ).toInt() // 16dp bottom margin
+                                )
+                            }
+                        }
+                        
+                        // Ensure FrameLayout doesn't clip children
+                        frameLayout.clipToPadding = false
+                        frameLayout.clipChildren = false
+                        
+                        // Add icon to frame layout (on top of everything, after ScrollView)
+                        // Add at the end to ensure it's on top
+                        frameLayout.addView(expansionIcon)
+                        // Bring to front to ensure it's visible above ScrollView
+                        expansionIcon.bringToFront()
+                        frameLayout.requestLayout() // Request layout update
+                        frameLayout.invalidate() // Force redraw
+                        
+                        // Log frameLayout dimensions and icon position for debugging
+                        frameLayout.post {
+                            Log.d("ArkhamCardFragment", "Added expansion icon for expansion $expId at bottom left")
+                            Log.d("ArkhamCardFragment", "FrameLayout: ${frameLayout.width}x${frameLayout.height}, Icon: ${expansionIcon.width}x${expansionIcon.height}, Position: (${expansionIcon.left}, ${expansionIcon.top})")
+                            Log.d("ArkhamCardFragment", "FrameLayout child count: ${frameLayout.childCount}, Icon elevation: ${expansionIcon.elevation}")
+                        }
+                    }
+                } else {
+                    Log.w("ArkhamCardFragment", "Icon bitmap is null for path: $iconPath")
+                }
+            } catch (e: Exception) {
+                Log.w("ArkhamCardFragment", "Error loading icon: ${e.message}", e)
             }
         }
     }

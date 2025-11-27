@@ -85,18 +85,22 @@ class NeighborhoodSelector : AppCompatActivity() {
                                     Log.d("NeighborhoodSelector", "Successfully loaded button image: ${bitmap.width}x${bitmap.height}")
                                     button.background = android.graphics.drawable.BitmapDrawable(resources, bitmap)
                                 } else {
-                                    Log.w("NeighborhoodSelector", "Bitmap is null after loading from $buttonPath")
+                                    Log.d("NeighborhoodSelector", "Bitmap is null after loading from $buttonPath, using default")
                                     // Fallback to default if bitmap couldn't be loaded
                                     button.setBackgroundResource(R.drawable.neighbourhood_overlay)
                                 }
+                            } catch (e: java.io.FileNotFoundException) {
+                                // File not found is expected for expansion neighborhoods without button images
+                                // Silently fall back to default (no error logging needed)
+                                button.setBackgroundResource(R.drawable.neighbourhood_overlay)
                             } catch (e: Exception) {
-                                Log.e("NeighborhoodSelector", "Could not load button image from $buttonPath: ${e.message}", e)
+                                // Other exceptions (e.g., corrupted file) - log as warning, not error
+                                Log.w("NeighborhoodSelector", "Could not load button image from $buttonPath: ${e.message}")
                                 // Fallback to default if image not found
                                 button.setBackgroundResource(R.drawable.neighbourhood_overlay)
                             }
                         } else {
-                            Log.w("NeighborhoodSelector", "Button path is null or empty for ${neighborhood.getNeighborhoodName()}")
-                            // No button path specified, use default
+                            // No button path specified, use default (no logging needed)
                             button.setBackgroundResource(R.drawable.neighbourhood_overlay)
                         }
                         

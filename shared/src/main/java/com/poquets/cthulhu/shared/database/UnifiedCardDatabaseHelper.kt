@@ -1060,6 +1060,126 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
     }
     
     /**
+     * Get expansion ID for a neighborhood
+     * Returns the hardcoded expansion ID (1-10) based on the expansion name
+     */
+    fun getExpansionIdForNeighborhood(neiId: Long): Long? {
+        rwLock.readLock().lock()
+        try {
+            val db = readableDatabase
+            // Get expansion name from neighborhood via JOIN with expansions table
+            // Also get the database exp_id for debugging
+            val cursor = db.rawQuery(
+                """
+                SELECT e.$COLUMN_EXP_ID, e.$COLUMN_EXP_NAME
+                FROM $TABLE_NEIGHBORHOODS n
+                JOIN $TABLE_EXPANSIONS e ON n.$COLUMN_EXP_ID = e.$COLUMN_EXP_ID
+                WHERE n.$COLUMN_NEI_ID = ?
+                AND e.$COLUMN_GAME_TYPE = ?
+                LIMIT 1
+                """.trimIndent(),
+                arrayOf(neiId.toString(), GameType.ARKHAM.value)
+            )
+            
+            cursor.use {
+                if (it.moveToFirst()) {
+                    val dbExpIdIndex = it.getColumnIndexOrThrow(COLUMN_EXP_ID)
+                    val expNameIndex = it.getColumnIndexOrThrow(COLUMN_EXP_NAME)
+                    val dbExpId = it.getLong(dbExpIdIndex)
+                    val expName = it.getString(expNameIndex)
+                    
+                    Log.d(TAG, "Found expansion for neighborhood $neiId: database exp_id=$dbExpId, name='$expName'")
+                    
+                    // Map expansion name to hardcoded ID (1-10)
+                    // This matches the ExpansionAdapter.getCheckboxOnPath() system
+                    // IMPORTANT: Order matters - check more specific names first
+                    val hardcodedId = when {
+                        // Base game - check first
+                        expName.equals("BASE", ignoreCase = true) || 
+                        expName.equals("Base", ignoreCase = true) || 
+                        expName.equals("Base Game", ignoreCase = true) -> {
+                            Log.d(TAG, "Matched Base game -> ID 1")
+                            1L
+                        }
+                        // Revised version must come before regular version
+                        expName.contains("Dark Pharoah Revised", ignoreCase = true) || 
+                        expName.contains("Dark Pharaoh Revised", ignoreCase = true) -> {
+                            Log.d(TAG, "Matched Curse of the Dark Pharoah Revised -> ID 9")
+                            9L
+                        }
+                        // Regular Dark Pharoah
+                        expName.contains("Dark Pharoah", ignoreCase = true) || 
+                        expName.contains("Dark Pharaoh", ignoreCase = true) -> {
+                            Log.d(TAG, "Matched Curse of the Dark Pharoah -> ID 2")
+                            2L
+                        }
+                        expName.contains("Dunwich", ignoreCase = true) -> {
+                            Log.d(TAG, "Matched Dunwich Horror -> ID 3")
+                            3L
+                        }
+                        expName.contains("King in Yellow", ignoreCase = true) -> {
+                            Log.d(TAG, "Matched The King in Yellow -> ID 4")
+                            4L
+                        }
+                        expName.contains("Kingsport", ignoreCase = true) -> {
+                            Log.d(TAG, "Matched Kingsport Horror -> ID 5")
+                            5L
+                        }
+                        expName.contains("Black Goat", ignoreCase = true) -> {
+                            Log.d(TAG, "Matched Black Goat of the Woods -> ID 6")
+                            6L
+                        }
+                        expName.contains("Innsmouth", ignoreCase = true) -> {
+                            Log.d(TAG, "Matched Innsmouth Horror -> ID 7")
+                            7L
+                        }
+                        expName.contains("Lurker", ignoreCase = true) -> {
+                            Log.d(TAG, "Matched Lurker at the Threshold -> ID 8")
+                            8L
+                        }
+                        expName.contains("Miskatonic", ignoreCase = true) -> {
+                            Log.d(TAG, "Matched Miskatonic Horror -> ID 10")
+                            10L
+                        }
+                        else -> {
+                            Log.w(TAG, "Unknown expansion name: '$expName', defaulting to base game (ID=1)")
+                            Log.w(TAG, "Full expansion name for debugging: '$expName' (length=${expName.length})")
+                            1L
+                        }
+                    }
+                    
+                    Log.d(TAG, "Final mapping: expansion '$expName' -> hardcoded ID $hardcodedId for neighborhood $neiId")
+                    return hardcodedId
+                } else {
+                    Log.w(TAG, "No expansion found for neighborhood $neiId (JOIN returned no results)")
+                    // Fallback: try direct query without JOIN
+                    val fallbackCursor = db.rawQuery(
+                        """
+                        SELECT $COLUMN_EXP_ID
+                        FROM $TABLE_NEIGHBORHOODS
+                        WHERE $COLUMN_NEI_ID = ?
+                        LIMIT 1
+                        """.trimIndent(),
+                        arrayOf(neiId.toString())
+                    )
+                    fallbackCursor.use { fc ->
+                        if (fc.moveToFirst()) {
+                            val expId = fc.getLong(fc.getColumnIndexOrThrow(COLUMN_EXP_ID))
+                            Log.w(TAG, "Found exp_id=$expId in neighborhoods table, but JOIN failed. Expansion might not exist in expansions table.")
+                        }
+                    }
+                }
+            }
+            return null
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting expansion ID for neighborhood $neiId: ${e.message}", e)
+            return null
+        } finally {
+            rwLock.readLock().unlock()
+        }
+    }
+    
+    /**
      * Insert a location
      */
     fun insertLocation(locId: Long, expId: Long?, neiId: Long?, name: String, buttonPath: String? = null, sort: Int = 0): Long {

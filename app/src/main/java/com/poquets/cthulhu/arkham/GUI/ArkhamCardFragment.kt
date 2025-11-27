@@ -50,6 +50,25 @@ class ArkhamCardFragment : Fragment() {
         private const val ARG_NEIGHBORHOOD_ID = "neighborhood_id"
         private const val ARG_IS_OTHER_WORLD = "is_other_world"
         
+        /**
+         * Sort encounters by location name alphabetically (A to Z)
+         * "Other" location should always be at the bottom
+         */
+        fun sortEncountersByLocation(encounters: List<EncounterAdapter>): List<EncounterAdapter> {
+            return encounters.sortedWith(compareBy<EncounterAdapter> { encounter ->
+                val locationName = encounter.getLocation()?.getLocationName() ?: ""
+                // "Other" should be sorted last, so use "ZZZ" for it
+                if (locationName.equals("Other", ignoreCase = true)) {
+                    "ZZZ"
+                } else {
+                    locationName.uppercase() // Case-insensitive sorting
+                }
+            }.thenBy { encounter ->
+                // Secondary sort by encounter ID for consistency
+                encounter.getID()
+            })
+        }
+        
         fun newInstance(card: NeighborhoodCardAdapter): ArkhamCardFragment {
             val fragment = ArkhamCardFragment()
             val args = Bundle()
@@ -271,26 +290,16 @@ class ArkhamCardFragment : Fragment() {
         // Make card contents background transparent too
         cardContents?.background = null
         
-        // Get encounters
-        val encounters = if (isOtherWorld) {
-            // For otherworld cards, sort by location name alphabetically (A to Z)
-            // "Other" location should always be at the bottom
-            val unsortedEncounters = otherWorldCard?.getEncounters() ?: emptyList()
-            unsortedEncounters.sortedWith(compareBy<EncounterAdapter> { encounter ->
-                val locationName = encounter.getLocation()?.getLocationName() ?: ""
-                // "Other" should be sorted last, so use "ZZZ" for it
-                if (locationName.equals("Other", ignoreCase = true)) {
-                    "ZZZ"
-                } else {
-                    locationName.uppercase() // Case-insensitive sorting
-                }
-            }.thenBy { encounter ->
-                // Secondary sort by encounter ID for consistency
-                encounter.getID()
-            })
+        // Get encounters and sort them consistently
+        val unsortedEncounters = if (isOtherWorld) {
+            otherWorldCard?.getEncounters() ?: emptyList()
         } else {
             card?.getEncounters() ?: emptyList()
         }
+        
+        // Sort encounters by location name alphabetically (A to Z)
+        // "Other" location should always be at the bottom
+        val encounters = sortEncountersByLocation(unsortedEncounters)
         
         if (encounters.isEmpty()) {
             // Show placeholder if no encounters
@@ -342,6 +351,9 @@ class ArkhamCardFragment : Fragment() {
             val clickListener = View.OnClickListener {
                 val gameState = GameState.getInstance(requireContext())
                 gameState.AddHistory(encounter)
+                
+                // Update the card history with the selected encounter ID
+                gameState.updateCardHistorySelectedEncounter(encounter.getID())
                 
                 if (isOtherWorld) {
                     val cardId = otherWorldCard?.getID() ?: 0L

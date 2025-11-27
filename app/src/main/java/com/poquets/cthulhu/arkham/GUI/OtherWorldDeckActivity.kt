@@ -5,6 +5,7 @@ import android.util.Log
 import android.util.TypedValue
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
 import android.widget.*
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -47,6 +48,10 @@ class OtherWorldDeckActivity : AppCompatActivity() {
         GameState.getInstance(applicationContext)
         
         viewPager = findViewById(R.id.viewpager)
+        
+        // Hide navigation container (only shown in history)
+        val navigationContainer = findViewById<LinearLayout>(R.id.navigationContainer)
+        navigationContainer?.visibility = View.GONE
         
         // Load deck
         activityScope.launch {

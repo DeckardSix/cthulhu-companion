@@ -40,7 +40,8 @@ class GameStateAdapter private constructor(context: Context) {
     data class CardHistoryEntry(
         val cardId: Long,
         val isOtherWorld: Boolean,
-        val neighborhoodId: Long? = null // Only for location cards
+        val neighborhoodId: Long? = null, // Only for location cards
+        var selectedEncounterId: Long? = null // The encounter that was selected when card was opened
     )
     
     companion object {
@@ -441,17 +442,29 @@ class GameStateAdapter private constructor(context: Context) {
     /**
      * Add card to history (stores last 20 cards)
      */
-    fun addCardHistory(cardId: Long, isOtherWorld: Boolean, neighborhoodId: Long? = null) {
+    fun addCardHistory(cardId: Long, isOtherWorld: Boolean, neighborhoodId: Long? = null, selectedEncounterId: Long? = null) {
         synchronized(cardHistory) {
             // Remove if already exists (to move to front)
             cardHistory.removeAll { it.cardId == cardId && it.isOtherWorld == isOtherWorld }
             // Add to front (latest first)
-            cardHistory.add(0, CardHistoryEntry(cardId, isOtherWorld, neighborhoodId))
+            cardHistory.add(0, CardHistoryEntry(cardId, isOtherWorld, neighborhoodId, selectedEncounterId))
             // Keep only last 20
             if (cardHistory.size > MAX_CARD_HISTORY) {
                 cardHistory.removeAt(cardHistory.size - 1)
             }
-            Log.d("GameStateAdapter", "Added card to history: cardId=$cardId, isOtherWorld=$isOtherWorld, neighborhoodId=$neighborhoodId (total: ${cardHistory.size})")
+            Log.d("GameStateAdapter", "Added card to history: cardId=$cardId, isOtherWorld=$isOtherWorld, neighborhoodId=$neighborhoodId, selectedEncounterId=$selectedEncounterId (total: ${cardHistory.size})")
+        }
+    }
+    
+    /**
+     * Update the selected encounter for the most recently added card in history
+     */
+    fun updateCardHistorySelectedEncounter(encounterId: Long) {
+        synchronized(cardHistory) {
+            if (cardHistory.isNotEmpty()) {
+                cardHistory[0] = cardHistory[0].copy(selectedEncounterId = encounterId)
+                Log.d("GameStateAdapter", "Updated selected encounter for latest card: encounterId=$encounterId")
+            }
         }
     }
     

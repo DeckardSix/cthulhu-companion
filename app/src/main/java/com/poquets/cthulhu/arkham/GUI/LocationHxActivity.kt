@@ -102,17 +102,19 @@ class LocationHxActivity : AppCompatActivity() {
             updateCounter(0, totalCards)
             
             // Setup arrow buttons
+            // Left button goes to previous (older) card (higher index)
             leftArrowButton?.setOnClickListener {
-                val currentItem = viewPager.currentItem
-                if (currentItem > 0) {
-                    viewPager.setCurrentItem(currentItem - 1, true)
-                }
-            }
-            
-            rightArrowButton?.setOnClickListener {
                 val currentItem = viewPager.currentItem
                 if (currentItem < totalCards - 1) {
                     viewPager.setCurrentItem(currentItem + 1, true)
+                }
+            }
+            
+            // Right button goes to next (newer) card (lower index)
+            rightArrowButton?.setOnClickListener {
+                val currentItem = viewPager.currentItem
+                if (currentItem > 0) {
+                    viewPager.setCurrentItem(currentItem - 1, true)
                 }
             }
             
@@ -135,11 +137,13 @@ class LocationHxActivity : AppCompatActivity() {
     }
     
     private fun updateArrowButtons(currentPosition: Int, totalCards: Int) {
-        leftArrowButton?.isEnabled = currentPosition > 0
-        leftArrowButton?.alpha = if (currentPosition > 0) 1.0f else 0.5f
+        // Left button enabled when not at the last (oldest) card
+        leftArrowButton?.isEnabled = currentPosition < totalCards - 1
+        leftArrowButton?.alpha = if (currentPosition < totalCards - 1) 1.0f else 0.5f
         
-        rightArrowButton?.isEnabled = currentPosition < totalCards - 1
-        rightArrowButton?.alpha = if (currentPosition < totalCards - 1) 1.0f else 0.5f
+        // Right button enabled when not at the first (newest) card
+        rightArrowButton?.isEnabled = currentPosition > 0
+        rightArrowButton?.alpha = if (currentPosition > 0) 1.0f else 0.5f
     }
     
     /**
@@ -315,7 +319,7 @@ class LocationHxActivity : AppCompatActivity() {
                 return
             }
             
-            val encounters = when (theCard) {
+            val unsortedEncounters = when (theCard) {
                 is NeighborhoodCardAdapter -> {
                     val encs = theCard.getEncounters()
                     Log.d("LocationHxActivity", "NeighborhoodCardAdapter.getEncounters() returned ${encs.size} encounters")
@@ -332,8 +336,16 @@ class LocationHxActivity : AppCompatActivity() {
                 }
             }
             
-            // For history, we want to show all encounters, with the first one selected (if any)
-            val selectedEncounter = encounters.firstOrNull()
+            // Sort encounters consistently (same as ArkhamCardFragment)
+            val encounters = ArkhamCardFragment.sortEncountersByLocation(unsortedEncounters)
+            
+            // Find the selected encounter by ID (if saved in history)
+            val selectedEncounter = cardEntry.selectedEncounterId?.let { encounterId ->
+                encounters.find { it.getID() == encounterId }
+            } ?: encounters.firstOrNull() // Fallback to first if not found
+            
+            Log.d("LocationHxActivity", "Card ${cardEntry.cardId}: found ${encounters.size} encounters, selected encounter ID=${cardEntry.selectedEncounterId}, found=${selectedEncounter != null}")
+            
             holder.bind(selectedEncounter, theCard, encounters)
         }
         

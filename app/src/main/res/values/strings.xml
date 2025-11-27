@@ -39,5 +39,11 @@
     <string name="dreamland_s">Dreamland\'s</string>
     <string name="city_wilderness">City/Wilderness</string>
     <string name="gate">Gate</string>
+    
+    <!-- Location History strings -->
+    <string name="empty_hx">No Encounters have been selected…</string>
+    <string name="hx_atmospheric_text">In the depths of time, ancient horrors await…</string>
+    <string name="delete_card">Remove</string>
+    <string name="hx_time_image">Cthulhu image</string>
 </resources>
 

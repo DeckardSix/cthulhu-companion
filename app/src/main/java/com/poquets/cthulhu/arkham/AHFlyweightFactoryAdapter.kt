@@ -442,6 +442,73 @@ class AHFlyweightFactoryAdapter private constructor(context: Context) {
     }
     
     /**
+     * Get encounter text by encounter ID (compatible with AHFlyweightFactory.getEncounterText())
+     */
+    fun getEncounterText(encID: Long): String {
+        return runBlocking {
+            withContext(Dispatchers.IO) {
+                try {
+                    val db = UnifiedCardDatabaseHelper.getInstance(appContext)
+                    val database = db.readableDatabase
+                    val cursor = database.query(
+                        "encounters",
+                        arrayOf("enc_text", "loc_id"),
+                        "enc_id = ?",
+                        arrayOf(encID.toString()),
+                        null, null, null, "1"
+                    )
+                    cursor.use {
+                        if (it.moveToFirst()) {
+                            it.getString(it.getColumnIndexOrThrow("enc_text"))
+                        } else {
+                            ""
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("AHFlyweightFactoryAdapter", "Error getting encounter text for $encID: ${e.message}", e)
+                    ""
+                }
+            }
+        }
+    }
+    
+    /**
+     * Get location ID for an encounter (helper for creating EncounterAdapter)
+     */
+    fun getLocationIdForEncounter(encID: Long): Long? {
+        return runBlocking {
+            withContext(Dispatchers.IO) {
+                try {
+                    val db = UnifiedCardDatabaseHelper.getInstance(appContext)
+                    val database = db.readableDatabase
+                    val cursor = database.query(
+                        "encounters",
+                        arrayOf("loc_id"),
+                        "enc_id = ?",
+                        arrayOf(encID.toString()),
+                        null, null, null, "1"
+                    )
+                    cursor.use {
+                        if (it.moveToFirst()) {
+                            val locIdIndex = it.getColumnIndexOrThrow("loc_id")
+                            if (!it.isNull(locIdIndex)) {
+                                it.getLong(locIdIndex)
+                            } else {
+                                null
+                            }
+                        } else {
+                            null
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("AHFlyweightFactoryAdapter", "Error getting location ID for encounter $encID: ${e.message}", e)
+                    null
+                }
+            }
+        }
+    }
+    
+    /**
      * Get expansion IDs for a card (compatible with AHFlyweightFactory.getExpansionsForCard())
      */
     fun getExpansionsForCard(cardID: Long): List<Long> {
@@ -460,6 +527,65 @@ class AHFlyweightFactoryAdapter private constructor(context: Context) {
                     }
                 } else {
                     emptyList()
+                }
+            }
+        }
+    }
+    
+    /**
+     * Get card by encounter ID (compatible with AHFlyweightFactory.getCardByEncID())
+     * Returns either a NeighborhoodCardAdapter or OtherWorldCardAdapter
+     */
+    fun getCardByEncID(encID: Long): Any? {
+        return runBlocking {
+            withContext(Dispatchers.IO) {
+                try {
+                    val db = UnifiedCardDatabaseHelper.getInstance(appContext)
+                    
+                    // Query to find which card contains this encounter
+                    // Join encounters -> card_to_encounter -> unified_cards
+                    val query = """
+                        SELECT DISTINCT c.card_id, c.neighborhood_id
+                        FROM encounters e
+                        JOIN card_to_encounter cte 
+                            ON e.enc_id = cte.cte_enc_id
+                        JOIN unified_cards c 
+                            ON cte.cte_card_id = c.card_id
+                        WHERE e.enc_id = ?
+                            AND c.game_type = ?
+                        LIMIT 1
+                    """.trimIndent()
+                    
+                    val database = db.readableDatabase
+                    val cursor = database.rawQuery(query, arrayOf(encID.toString(), GameType.ARKHAM.value))
+                    cursor.use {
+                        if (it.moveToFirst()) {
+                            val cardIdIndex = it.getColumnIndexOrThrow("card_id")
+                            val neiIdIndex = it.getColumnIndex("neighborhood_id")
+                            
+                            val cardId = it.getLong(cardIdIndex)
+                            val neiId = if (!it.isNull(neiIdIndex)) it.getLong(neiIdIndex) else null
+                            
+                            android.util.Log.d("AHFlyweightFactoryAdapter", "getCardByEncID: encID=$encID, cardId=$cardId, neiId=$neiId")
+                            
+                            // If neighborhood_id is null, it's an otherworld card
+                            if (neiId == null) {
+                                val card = OtherWorldCardAdapter(cardId, null, appContext)
+                                android.util.Log.d("AHFlyweightFactoryAdapter", "Created OtherWorldCardAdapter for card $cardId")
+                                card
+                            } else {
+                                val card = NeighborhoodCardAdapter(cardId, neiId, null, appContext)
+                                android.util.Log.d("AHFlyweightFactoryAdapter", "Created NeighborhoodCardAdapter for card $cardId, neighborhood $neiId")
+                                card
+                            }
+                        } else {
+                            android.util.Log.w("AHFlyweightFactoryAdapter", "No card found for encounter $encID")
+                            null
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("AHFlyweightFactoryAdapter", "Error getting card by encounter ID $encID: ${e.message}", e)
+                    null
                 }
             }
         }

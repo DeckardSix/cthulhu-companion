@@ -212,8 +212,9 @@ class OtherworldSelector : AppCompatActivity() {
     }
     
     fun openEncHx(view: View) {
-        // TODO: Launch LocationHxActivity
-        Toast.makeText(this, "LocationHxActivity not yet implemented", Toast.LENGTH_SHORT).show()
+        val intent = Intent(this, LocationHxActivity::class.java)
+        intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+        startActivity(intent)
     }
     
     fun openOW(view: View) {

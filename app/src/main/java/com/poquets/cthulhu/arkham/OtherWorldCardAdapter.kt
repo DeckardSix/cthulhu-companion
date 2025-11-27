@@ -79,18 +79,27 @@ class OtherWorldCardAdapter(
     
     fun getEncounters(): List<EncounterAdapter> {
         if (context == null) {
+            android.util.Log.w("OtherWorldCardAdapter", "Context is null for card $cardId, cannot get encounters")
             return emptyList()
         }
+        
+        android.util.Log.d("OtherWorldCardAdapter", "getEncounters() called for card $cardId, unifiedCard=${if (unifiedCard != null) "loaded" else "null"}")
         
         // If unifiedCard is null, try to load it from database
         val cardToUse = unifiedCard ?: runBlocking {
             withContext(Dispatchers.IO) {
                 val db = UnifiedCardDatabaseHelper.getInstance(context!!)
-                db.getCard(GameType.ARKHAM, cardId.toString())
+                // Try to get card without expansion filter first (card_id is unique per game_type)
+                // If that fails, try with BASE expansion as fallback
+                val loaded = db.getCardWithoutExpansion(GameType.ARKHAM, cardId.toString())
+                    ?: db.getCard(GameType.ARKHAM, cardId.toString(), "BASE")
+                android.util.Log.d("OtherWorldCardAdapter", "Loaded card from DB: ${if (loaded != null) "found (cardId=${loaded.cardId}, expansion=${loaded.expansion})" else "not found"}")
+                loaded
             }
         }
         
         if (cardToUse == null) {
+            android.util.Log.w("OtherWorldCardAdapter", "Card $cardId not found in database, returning empty encounters")
             return emptyList()
         }
         

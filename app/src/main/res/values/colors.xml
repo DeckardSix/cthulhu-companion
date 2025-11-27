@@ -4,8 +4,12 @@
     <color name="md_theme_light_secondary">#03DAC6</color>
     <color name="background_primary">#121212</color>
     <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
     
     <!-- Eldritch Horror colors -->
     <color name="shaded">#99000000</color>
+    
+    <!-- Location History colors -->
+    <color name="shaded_hx">#80000000</color>
 </resources>
 

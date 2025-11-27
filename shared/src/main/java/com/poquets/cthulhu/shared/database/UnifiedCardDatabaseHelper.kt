@@ -57,7 +57,7 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
         private const val TAG = "UnifiedCardDB"
         private const val DATABASE_NAME = "cthulhu_companion.db"
         // Version 4: add card_to_color table so we can efficiently map Arkham other world cards to colors
-        private const val DATABASE_VERSION = 4
+        private const val DATABASE_VERSION = 5
         
         // Singleton instance
         @Volatile
@@ -327,6 +327,25 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
         )
     """.trimIndent()
     
+    // Encounter History table (for tracking encountered cards)
+    private val TABLE_ENCOUNTER_HISTORY = "encounter_history"
+    private val COLUMN_HX_ID = "hx_id"
+    private val COLUMN_HX_GAME_ID = "hx_game_id"
+    private val COLUMN_HX_ENC_ID = "hx_enc_id"
+    private val COLUMN_HX_INVERSE_ORDER = "hx_inverse_order"
+    private val COLUMN_HX_GAME_TYPE = "hx_game_type"
+    
+    private val CREATE_TABLE_ENCOUNTER_HISTORY = """
+        CREATE TABLE IF NOT EXISTS $TABLE_ENCOUNTER_HISTORY (
+            $COLUMN_HX_ID INTEGER PRIMARY KEY AUTOINCREMENT,
+            $COLUMN_HX_GAME_ID INTEGER NOT NULL,
+            $COLUMN_HX_ENC_ID INTEGER NOT NULL,
+            $COLUMN_HX_INVERSE_ORDER INTEGER NOT NULL,
+            $COLUMN_HX_GAME_TYPE TEXT NOT NULL,
+            FOREIGN KEY ($COLUMN_HX_ENC_ID) REFERENCES $TABLE_ENCOUNTERS($COLUMN_ENC_ID)
+        )
+    """.trimIndent()
+    
     override fun onCreate(db: SQLiteDatabase) {
         Log.d(TAG, "Creating unified database tables")
         db.execSQL(CREATE_TABLE_EXPANSIONS)
@@ -338,6 +357,7 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
         db.execSQL(CREATE_TABLE_COLORS)
         db.execSQL(CREATE_TABLE_LOCATION_TO_COLOR)
         db.execSQL(CREATE_TABLE_CARD_TO_COLOR)
+        db.execSQL(CREATE_TABLE_ENCOUNTER_HISTORY)
         db.execSQL(CREATE_INDEX_GAME_TYPE)
         db.execSQL(CREATE_INDEX_EXPANSION)
         db.execSQL(CREATE_INDEX_REGION)
@@ -365,6 +385,11 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
             // Add card_to_color table
             Log.d(TAG, "Adding card_to_color table")
             db.execSQL(CREATE_TABLE_CARD_TO_COLOR)
+        }
+        if (oldVersion < 5) {
+            // Add encounter_history table
+            Log.d(TAG, "Adding encounter_history table")
+            db.execSQL(CREATE_TABLE_ENCOUNTER_HISTORY)
         }
     }
     
@@ -692,6 +717,38 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
                 null,
                 "$COLUMN_GAME_TYPE = ? AND $COLUMN_CARD_ID = ? AND $COLUMN_EXPANSION = ?",
                 arrayOf(gameType.value, cardId, expansion),
+                null,
+                null,
+                null,
+                "1"
+            )
+            
+            return cursor.use {
+                if (it.moveToFirst()) {
+                    createCardFromCursor(it)
+                } else null
+            }
+        } finally {
+            rwLock.readLock().unlock()
+        }
+    }
+    
+    /**
+     * Get a card by ID without filtering by expansion (useful when expansion is unknown)
+     * Returns the first matching card for the given game type and card ID
+     */
+    fun getCardWithoutExpansion(
+        gameType: GameType,
+        cardId: String
+    ): UnifiedCard? {
+        rwLock.readLock().lock()
+        try {
+            val db = readableDatabase
+            val cursor = db.query(
+                TABLE_CARDS,
+                null,
+                "$COLUMN_GAME_TYPE = ? AND $COLUMN_CARD_ID = ?",
+                arrayOf(gameType.value, cardId),
                 null,
                 null,
                 null,
@@ -1948,6 +2005,130 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
             return -1
         } finally {
             rwLock.writeLock().unlock()
+        }
+    }
+    
+    /**
+     * Add encounter to history
+     */
+    fun addEncounterHistory(gameId: Long, encId: Long, gameType: GameType): Long {
+        rwLock.writeLock().lock()
+        try {
+            val db = writableDatabase
+            
+            // Get highest order for this game
+            val maxOrder = getHighestOrderForGame(gameId, gameType)
+            
+            val values = android.content.ContentValues().apply {
+                put(COLUMN_HX_GAME_ID, gameId)
+                put(COLUMN_HX_ENC_ID, encId)
+                put(COLUMN_HX_INVERSE_ORDER, maxOrder + 1)
+                put(COLUMN_HX_GAME_TYPE, gameType.value)
+            }
+            return db.insert(TABLE_ENCOUNTER_HISTORY, null, values)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error adding encounter history: ${e.message}", e)
+            return -1
+        } finally {
+            rwLock.writeLock().unlock()
+        }
+    }
+    
+    /**
+     * Get encounter history for a game, ordered by inverse order (newest first)
+     */
+    fun getEncounterHistory(gameId: Long, gameType: GameType): List<Long> {
+        rwLock.readLock().lock()
+        try {
+            val db = readableDatabase
+            val query = """
+                SELECT $COLUMN_HX_ENC_ID
+                FROM $TABLE_ENCOUNTER_HISTORY
+                WHERE $COLUMN_HX_GAME_ID = ? AND $COLUMN_HX_GAME_TYPE = ?
+                ORDER BY $COLUMN_HX_INVERSE_ORDER DESC
+            """.trimIndent()
+            
+            val cursor = db.rawQuery(query, arrayOf(gameId.toString(), gameType.value))
+            val encIds = mutableListOf<Long>()
+            cursor.use {
+                val encIdIndex = it.getColumnIndexOrThrow(COLUMN_HX_ENC_ID)
+                while (it.moveToNext()) {
+                    encIds.add(it.getLong(encIdIndex))
+                }
+            }
+            return encIds
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting encounter history: ${e.message}", e)
+            return emptyList()
+        } finally {
+            rwLock.readLock().unlock()
+        }
+    }
+    
+    /**
+     * Remove encounter from history by position (0 = newest)
+     */
+    fun removeEncounterHistory(gameId: Long, position: Int, gameType: GameType): Boolean {
+        rwLock.writeLock().lock()
+        try {
+            val db = writableDatabase
+            
+            // Get the encounter ID at this position
+            val query = """
+                SELECT $COLUMN_HX_ID
+                FROM $TABLE_ENCOUNTER_HISTORY
+                WHERE $COLUMN_HX_GAME_ID = ? AND $COLUMN_HX_GAME_TYPE = ?
+                ORDER BY $COLUMN_HX_INVERSE_ORDER DESC
+                LIMIT 1 OFFSET ?
+            """.trimIndent()
+            
+            val cursor = db.rawQuery(query, arrayOf(gameId.toString(), gameType.value, position.toString()))
+            var hxId: Long? = null
+            cursor.use {
+                if (it.moveToFirst()) {
+                    hxId = it.getLong(it.getColumnIndexOrThrow(COLUMN_HX_ID))
+                }
+            }
+            
+            if (hxId != null) {
+                val deleted = db.delete(TABLE_ENCOUNTER_HISTORY, "$COLUMN_HX_ID = ?", arrayOf(hxId.toString()))
+                return deleted > 0
+            }
+            return false
+        } catch (e: Exception) {
+            Log.e(TAG, "Error removing encounter history: ${e.message}", e)
+            return false
+        } finally {
+            rwLock.writeLock().unlock()
+        }
+    }
+    
+    /**
+     * Get highest order for a game
+     */
+    private fun getHighestOrderForGame(gameId: Long, gameType: GameType): Long {
+        rwLock.readLock().lock()
+        try {
+            val db = readableDatabase
+            val query = """
+                SELECT MAX($COLUMN_HX_INVERSE_ORDER)
+                FROM $TABLE_ENCOUNTER_HISTORY
+                WHERE $COLUMN_HX_GAME_ID = ? AND $COLUMN_HX_GAME_TYPE = ?
+            """.trimIndent()
+            
+            val cursor = db.rawQuery(query, arrayOf(gameId.toString(), gameType.value))
+            cursor.use {
+                if (it.moveToFirst()) {
+                    val maxOrder = it.getLong(0)
+                    return if (maxOrder > 0) maxOrder else 0
+                }
+            }
+            return 0
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting highest order: ${e.message}", e)
+            return 0
+        } finally {
+            rwLock.readLock().unlock()
         }
     }
 }

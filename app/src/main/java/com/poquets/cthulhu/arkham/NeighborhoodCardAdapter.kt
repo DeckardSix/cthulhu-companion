@@ -48,7 +48,10 @@ class NeighborhoodCardAdapter(
         val cardToUse = unifiedCard ?: runBlocking {
             withContext(Dispatchers.IO) {
                 val db = UnifiedCardDatabaseHelper.getInstance(context!!)
-                db.getCard(GameType.ARKHAM, cardId.toString())
+                // Try to get card without expansion filter first (card_id is unique per game_type)
+                // If that fails, try with BASE expansion as fallback
+                db.getCardWithoutExpansion(GameType.ARKHAM, cardId.toString())
+                    ?: db.getCard(GameType.ARKHAM, cardId.toString(), "BASE")
             }
         }
         

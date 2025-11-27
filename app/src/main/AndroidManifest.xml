@@ -113,6 +113,14 @@
             android:screenOrientation="portrait"
             android:label="Other World Deck" />
         
+        <!-- Arkham Horror Location History Activity -->
+        <activity
+            android:name=".arkham.GUI.LocationHxActivity"
+            android:exported="false"
+            android:theme="@style/Theme.CthulhuCompanion"
+            android:screenOrientation="portrait"
+            android:label="Location History" />
+        
     </application>
 </manifest>
 

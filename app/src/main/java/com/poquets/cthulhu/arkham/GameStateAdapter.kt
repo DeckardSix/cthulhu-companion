@@ -355,8 +355,77 @@ class GameStateAdapter private constructor(context: Context) {
      * Add encounter to history (compatible with GameState.AddHistory())
      */
     fun AddHistory(encounter: EncounterAdapter) {
-        // TODO: Store encounter in history
-        Log.d("GameStateAdapter", "Added encounter to history: ${encounter.getID()}")
+        runBlocking {
+            withContext(Dispatchers.IO) {
+                var gameId = gameState.getCurrentGameId()
+                if (gameId == -1L) {
+                    // Create new game if none exists
+                    gameId = gameState.newGame(GameType.ARKHAM)
+                    Log.d("GameStateAdapter", "Created new game for history: $gameId")
+                    if (gameId == -1L) {
+                        Log.e("GameStateAdapter", "Failed to create new game for history")
+                        return@withContext
+                    }
+                }
+                val db = UnifiedCardDatabaseHelper.getInstance(appContext)
+                val hxId = db.addEncounterHistory(gameId, encounter.getID(), GameType.ARKHAM)
+                if (hxId > 0) {
+                    Log.d("GameStateAdapter", "Added encounter ${encounter.getID()} to history (hx_id=$hxId, game_id=$gameId)")
+                } else {
+                    Log.e("GameStateAdapter", "Failed to add encounter ${encounter.getID()} to history (returned hx_id=$hxId)")
+                }
+            }
+        }
+    }
+    
+    /**
+     * Get encounter history (compatible with GameState.getEncounterHx())
+     * Returns list of EncounterAdapter objects in order (newest first)
+     */
+    fun getEncounterHx(): List<EncounterAdapter> {
+        return runBlocking {
+            withContext(Dispatchers.IO) {
+                val gameId = gameState.getCurrentGameId()
+                if (gameId == -1L) {
+                    return@withContext emptyList()
+                }
+                val db = UnifiedCardDatabaseHelper.getInstance(appContext)
+                val encIds = db.getEncounterHistory(gameId, GameType.ARKHAM)
+                
+                encIds.mapNotNull { encId ->
+                    try {
+                        val encounterText = ahFactory.getEncounterText(encId)
+                        val locId = ahFactory.getLocationIdForEncounter(encId)
+                        val location = locId?.let { ahFactory.getLocation(it) }
+                        EncounterAdapter(encId, encounterText, location)
+                    } catch (e: Exception) {
+                        Log.w("GameStateAdapter", "Could not load encounter $encId from history: ${e.message}")
+                        null
+                    }
+                }
+            }
+        }
+    }
+    
+    /**
+     * Remove encounter from history by position (compatible with GameState.removeHx())
+     */
+    fun removeHx(position: Int) {
+        runBlocking {
+            withContext(Dispatchers.IO) {
+                val gameId = gameState.getCurrentGameId()
+                if (gameId == -1L) {
+                    return@withContext
+                }
+                val db = UnifiedCardDatabaseHelper.getInstance(appContext)
+                val removed = db.removeEncounterHistory(gameId, position, GameType.ARKHAM)
+                if (removed) {
+                    Log.d("GameStateAdapter", "Removed encounter at position $position from history")
+                } else {
+                    Log.w("GameStateAdapter", "Failed to remove encounter at position $position")
+                }
+            }
+        }
     }
 }
 

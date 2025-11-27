@@ -33,6 +33,16 @@ class GameStateAdapter private constructor(context: Context) {
     // Store selected otherworld location ID
     private var selectedLocationId: Long? = null
     
+    // Card history (last 20 cards)
+    private val cardHistory = mutableListOf<CardHistoryEntry>()
+    private val MAX_CARD_HISTORY = 20
+    
+    data class CardHistoryEntry(
+        val cardId: Long,
+        val isOtherWorld: Boolean,
+        val neighborhoodId: Long? = null // Only for location cards
+    )
+    
     companion object {
         @Volatile
         private var INSTANCE: GameStateAdapter? = null
@@ -425,6 +435,42 @@ class GameStateAdapter private constructor(context: Context) {
                     Log.w("GameStateAdapter", "Failed to remove encounter at position $position")
                 }
             }
+        }
+    }
+    
+    /**
+     * Add card to history (stores last 20 cards)
+     */
+    fun addCardHistory(cardId: Long, isOtherWorld: Boolean, neighborhoodId: Long? = null) {
+        synchronized(cardHistory) {
+            // Remove if already exists (to move to front)
+            cardHistory.removeAll { it.cardId == cardId && it.isOtherWorld == isOtherWorld }
+            // Add to front (latest first)
+            cardHistory.add(0, CardHistoryEntry(cardId, isOtherWorld, neighborhoodId))
+            // Keep only last 20
+            if (cardHistory.size > MAX_CARD_HISTORY) {
+                cardHistory.removeAt(cardHistory.size - 1)
+            }
+            Log.d("GameStateAdapter", "Added card to history: cardId=$cardId, isOtherWorld=$isOtherWorld, neighborhoodId=$neighborhoodId (total: ${cardHistory.size})")
+        }
+    }
+    
+    /**
+     * Get card history (latest first)
+     */
+    fun getCardHistory(): List<CardHistoryEntry> {
+        synchronized(cardHistory) {
+            return cardHistory.toList()
+        }
+    }
+    
+    /**
+     * Clear card history
+     */
+    fun clearCardHistory() {
+        synchronized(cardHistory) {
+            cardHistory.clear()
+            Log.d("GameStateAdapter", "Cleared card history")
         }
     }
 }

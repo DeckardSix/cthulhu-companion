@@ -219,6 +219,17 @@ class ArkhamCardFragment : Fragment() {
                             frameLayout.addView(cardImageView, 0)
                             Log.d("ArkhamCardFragment", "Added card image view")
                             
+                            // Add card to history
+                            val gameState = GameState.getInstance(requireContext())
+                            if (isOtherWorld) {
+                                val cardId = otherWorldCard?.getID() ?: 0L
+                                gameState.addCardHistory(cardId, true, null)
+                            } else {
+                                val cardId = card?.getID() ?: 0L
+                                val neighborhoodId = card?.getNeiID() ?: 0L
+                                gameState.addCardHistory(cardId, false, neighborhoodId)
+                            }
+                            
                             // Add expansion icon at bottom left for both other world and location cards
                             addExpansionIcon(frameLayout)
                         }

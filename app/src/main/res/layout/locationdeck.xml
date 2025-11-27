@@ -31,6 +31,50 @@
         android:layout_width="fill_parent"
         android:layout_height="fill_parent"
         android:layout_below="@id/backButtonContainer"
+        android:layout_above="@+id/navigationContainer"
         android:padding="0dip" />
+    
+    <!-- Navigation container at bottom -->
+    <LinearLayout
+        android:id="@+id/navigationContainer"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:padding="16dp"
+        android:background="#80000000">
+        
+        <!-- Left arrow button -->
+        <ImageButton
+            android:id="@+id/leftArrowButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@android:drawable/ic_media_previous"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Previous card"
+            android:layout_marginEnd="16dp" />
+        
+        <!-- Card counter -->
+        <TextView
+            android:id="@+id/cardCounter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="1 of 1"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:paddingHorizontal="16dp" />
+        
+        <!-- Right arrow button -->
+        <ImageButton
+            android:id="@+id/rightArrowButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@android:drawable/ic_media_next"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Next card"
+            android:layout_marginStart="16dp" />
+    </LinearLayout>
 </RelativeLayout>
 

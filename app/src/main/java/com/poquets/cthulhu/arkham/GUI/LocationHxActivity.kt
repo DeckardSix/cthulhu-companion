@@ -11,6 +11,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.FrameLayout
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.RelativeLayout
@@ -23,11 +24,13 @@ import com.poquets.cthulhu.R
 import com.poquets.cthulhu.arkham.AHFlyweightFactory
 import com.poquets.cthulhu.arkham.EncounterAdapter
 import com.poquets.cthulhu.arkham.GameState
+import com.poquets.cthulhu.arkham.GameStateAdapter
 import com.poquets.cthulhu.arkham.NeighborhoodCardAdapter
 import com.poquets.cthulhu.arkham.OtherWorldCardAdapter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.io.IOException
 import android.graphics.Bitmap
@@ -38,17 +41,21 @@ import android.graphics.Paint
 
 class LocationHxActivity : AppCompatActivity() {
     
-    private var encAdapter: EncounterHxAdapter? = null
+    private var cardAdapter: CardHxAdapter? = null
     private var noHx = true
+    private var viewpager: ViewPager2? = null
+    private var leftArrowButton: ImageButton? = null
+    private var rightArrowButton: ImageButton? = null
+    private var cardCounter: TextView? = null
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
         AHFlyweightFactory.INSTANCE.Init(this.applicationContext)
         
-        val encHx = GameState.getInstance(this).getEncounterHx()
+        val cardHistory = GameState.getInstance(this).getCardHistory()
         
-        if (encHx.isNotEmpty()) {
+        if (cardHistory.isNotEmpty()) {
             noHx = false
             setContentView(R.layout.locationdeck)
             
@@ -60,9 +67,15 @@ class LocationHxActivity : AppCompatActivity() {
             // Set background to cthulhu_background (not a color)
             rootLayout?.setBackgroundResource(R.drawable.cthulhu_background)
             
-            val viewpager = findViewById<ViewPager2>(R.id.viewpager)
-            encAdapter = EncounterHxAdapter(this, encHx.toMutableList())
-            viewpager.adapter = encAdapter
+            viewpager = findViewById<ViewPager2>(R.id.viewpager)
+            cardAdapter = CardHxAdapter(this, cardHistory.toMutableList())
+            viewpager?.adapter = cardAdapter
+            
+            // Set to latest card (index 0)
+            viewpager?.setCurrentItem(0, false)
+            
+            // Setup navigation buttons and counter
+            setupNavigation()
             
             // Add back button after ViewPager is set up
             addBackButton()
@@ -73,6 +86,60 @@ class LocationHxActivity : AppCompatActivity() {
             // Add atmospheric effects for the time-themed Hx screen
             addAtmosphericEffects()
         }
+    }
+    
+    private fun setupNavigation() {
+        leftArrowButton = findViewById<ImageButton>(R.id.leftArrowButton)
+        rightArrowButton = findViewById<ImageButton>(R.id.rightArrowButton)
+        cardCounter = findViewById<TextView>(R.id.cardCounter)
+        
+        val adapter = cardAdapter
+        val viewPager = viewpager
+        if (adapter != null && viewPager != null) {
+            val totalCards = adapter.itemCount
+            
+            // Update counter
+            updateCounter(0, totalCards)
+            
+            // Setup arrow buttons
+            leftArrowButton?.setOnClickListener {
+                val currentItem = viewPager.currentItem
+                if (currentItem > 0) {
+                    viewPager.setCurrentItem(currentItem - 1, true)
+                }
+            }
+            
+            rightArrowButton?.setOnClickListener {
+                val currentItem = viewPager.currentItem
+                if (currentItem < totalCards - 1) {
+                    viewPager.setCurrentItem(currentItem + 1, true)
+                }
+            }
+            
+            // Update arrows and counter when page changes
+            viewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
+                override fun onPageSelected(position: Int) {
+                    updateCounter(position, totalCards)
+                    updateArrowButtons(position, totalCards)
+                }
+            })
+            
+            // Initial arrow state
+            updateArrowButtons(0, totalCards)
+        }
+    }
+    
+    private fun updateCounter(currentPosition: Int, totalCards: Int) {
+        val position = currentPosition + 1 // 1-based for display
+        cardCounter?.text = "$position of $totalCards"
+    }
+    
+    private fun updateArrowButtons(currentPosition: Int, totalCards: Int) {
+        leftArrowButton?.isEnabled = currentPosition > 0
+        leftArrowButton?.alpha = if (currentPosition > 0) 1.0f else 0.5f
+        
+        rightArrowButton?.isEnabled = currentPosition < totalCards - 1
+        rightArrowButton?.alpha = if (currentPosition < totalCards - 1) 1.0f else 0.5f
     }
     
     /**
@@ -127,12 +194,19 @@ class LocationHxActivity : AppCompatActivity() {
     }
     
     private fun deleteCard() {
-        val viewpager = findViewById<ViewPager2>(R.id.viewpager)
-        val currentItem = viewpager.currentItem
-        encAdapter?.remove(currentItem)
-        encAdapter?.notifyDataSetChanged()
+        val currentItem = viewpager?.currentItem ?: 0
+        cardAdapter?.remove(currentItem)
+        cardAdapter?.notifyDataSetChanged()
         
-        if (encAdapter?.itemCount == 0) {
+        // Update navigation after deletion
+        val totalCards = cardAdapter?.itemCount ?: 0
+        if (totalCards > 0) {
+            // Adjust position if needed
+            val newPosition = minOf(currentItem, totalCards - 1)
+            viewpager?.setCurrentItem(newPosition, false)
+            updateCounter(newPosition, totalCards)
+            updateArrowButtons(newPosition, totalCards)
+        } else {
             noHx = true
             setContentView(R.layout.empty_hx)
             
@@ -191,16 +265,16 @@ class LocationHxActivity : AppCompatActivity() {
         return result
     }
     
-    inner class EncounterHxAdapter(
+    inner class CardHxAdapter(
         private val context: android.content.Context,
-        private val encArr: MutableList<EncounterAdapter>
-    ) : androidx.recyclerview.widget.RecyclerView.Adapter<EncounterHxAdapter.ViewHolder>() {
+        private val cardHistory: MutableList<GameStateAdapter.CardHistoryEntry>
+    ) : androidx.recyclerview.widget.RecyclerView.Adapter<CardHxAdapter.ViewHolder>() {
         
         init {
-            Log.w("AHEncounters", "${encArr.size} encounters in Hx.")
+            Log.d("LocationHxActivity", "${cardHistory.size} cards in history.")
         }
         
-        override fun getItemCount(): Int = encArr.size
+        override fun getItemCount(): Int = cardHistory.size
         
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
             // Create a FrameLayout to hold the card content
@@ -214,10 +288,33 @@ class LocationHxActivity : AppCompatActivity() {
         }
         
         override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-            val encounter = encArr[position]
-            Log.d("LocationHxActivity", "onBindViewHolder: position=$position, encounter ID=${encounter.getID()}")
-            val theCard = AHFlyweightFactory.INSTANCE.getCardByEncID(encounter.getID())
-            Log.d("LocationHxActivity", "getCardByEncID returned: ${theCard?.javaClass?.simpleName ?: "null"}")
+            val cardEntry = cardHistory[position]
+            Log.d("LocationHxActivity", "onBindViewHolder: position=$position, cardId=${cardEntry.cardId}, isOtherWorld=${cardEntry.isOtherWorld}")
+            
+            val theCard: Any? = if (cardEntry.isOtherWorld) {
+                // Load otherworld card
+                runBlocking {
+                    withContext(Dispatchers.IO) {
+                        val allCards = GameState.getInstance(context).getAllOtherWorldDeck()
+                        allCards.find { it.getID() == cardEntry.cardId }
+                    }
+                }
+            } else {
+                // Load location card
+                runBlocking {
+                    withContext(Dispatchers.IO) {
+                        val neighborhoodId = cardEntry.neighborhoodId ?: return@withContext null
+                        val deck = GameState.getInstance(context).getDeckByNeighborhood(neighborhoodId)
+                        deck.find { it.getID() == cardEntry.cardId }
+                    }
+                }
+            }
+            
+            if (theCard == null) {
+                Log.w("LocationHxActivity", "Could not load card ${cardEntry.cardId} from history")
+                return
+            }
+            
             val encounters = when (theCard) {
                 is NeighborhoodCardAdapter -> {
                     val encs = theCard.getEncounters()
@@ -230,27 +327,30 @@ class LocationHxActivity : AppCompatActivity() {
                     encs
                 }
                 else -> {
-                    Log.w("LocationHxActivity", "getCardByEncID returned null or unknown type for encounter ${encounter.getID()}")
+                    Log.w("LocationHxActivity", "Unknown card type: ${theCard.javaClass.simpleName}")
                     emptyList()
                 }
             }
             
-            holder.bind(encounter, theCard, encounters)
+            // For history, we want to show all encounters, with the first one selected (if any)
+            val selectedEncounter = encounters.firstOrNull()
+            holder.bind(selectedEncounter, theCard, encounters)
         }
         
         override fun getItemId(position: Int): Long {
-            return encArr[position].getID()
+            val entry = cardHistory[position]
+            // Create unique ID from card ID and type
+            return (entry.cardId shl 1) or (if (entry.isOtherWorld) 1L else 0L)
         }
         
         fun remove(position: Int) {
-            GameState.getInstance(context as AppCompatActivity).removeHx(position)
-            encArr.removeAt(position)
+            cardHistory.removeAt(position)
             notifyItemRemoved(position)
             notifyItemRangeChanged(position, itemCount)
         }
         
         inner class ViewHolder(itemView: View) : androidx.recyclerview.widget.RecyclerView.ViewHolder(itemView) {
-            fun bind(selectedEncounter: EncounterAdapter, theCard: Any?, encounters: List<EncounterAdapter>) {
+            fun bind(selectedEncounter: EncounterAdapter?, theCard: Any?, encounters: List<EncounterAdapter>) {
                 val frameLayout = itemView as FrameLayout
                 
                 // Clear existing views
@@ -304,7 +404,7 @@ class LocationHxActivity : AppCompatActivity() {
                     )
                     
                     // Style based on whether this is the selected encounter
-                    val isSelected = encounter.getID() == selectedEncounter.getID()
+                    val isSelected = selectedEncounter != null && encounter.getID() == selectedEncounter.getID()
                     if (isSelected) {
                         // Selected section: bold with dark green color
                         title.setTypeface(title.typeface, android.graphics.Typeface.BOLD)
@@ -363,12 +463,12 @@ class LocationHxActivity : AppCompatActivity() {
                                 if (front != null) {
                                     val result = overlayCard(front, theCard)
                                     scrollView.background = android.graphics.drawable.BitmapDrawable(context.resources, result)
-                                    Log.d("LocationHxActivity", "Set card background for encounter ${selectedEncounter.getID()}")
+                                    Log.d("LocationHxActivity", "Set card background for encounter ${selectedEncounter?.getID()}")
                                 } else {
-                                    Log.w("LocationHxActivity", "Could not load card image for encounter ${selectedEncounter.getID()}")
+                                    Log.w("LocationHxActivity", "Could not load card image for encounter ${selectedEncounter?.getID()}")
                                 }
                             } else {
-                                Log.w("LocationHxActivity", "No card path for encounter ${selectedEncounter.getID()}")
+                                Log.w("LocationHxActivity", "No card path for encounter ${selectedEncounter?.getID()}")
                             }
                         } catch (e: Exception) {
                             Log.w("LocationHxActivity", "Error loading card image: ${e.message}")

@@ -952,16 +952,23 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
         rwLock.readLock().lock()
         try {
             val db = readableDatabase
-            val cursor = db.query(
-                TABLE_NEIGHBORHOODS,
-                arrayOf(COLUMN_NEI_ID, COLUMN_NEI_NAME, COLUMN_NEI_CARD_PATH, COLUMN_NEI_BUTTON_PATH),
-                "$COLUMN_EXP_ID = ?",
-                arrayOf(expId.toString()),
-                null, null,
-                "$COLUMN_NEI_NAME ASC"
+            // Use DISTINCT to ensure unique neighborhoods (in case same neighborhood appears multiple times)
+            val cursor = db.rawQuery(
+                """
+                SELECT DISTINCT 
+                    $COLUMN_NEI_ID, 
+                    $COLUMN_NEI_NAME, 
+                    $COLUMN_NEI_CARD_PATH, 
+                    $COLUMN_NEI_BUTTON_PATH
+                FROM $TABLE_NEIGHBORHOODS
+                WHERE $COLUMN_EXP_ID = ?
+                ORDER BY $COLUMN_NEI_NAME ASC
+                """.trimIndent(),
+                arrayOf(expId.toString())
             )
             
             val neighborhoods = mutableListOf<NeighborhoodData>()
+            val seenIds = mutableSetOf<Long>() // Track seen neighborhood IDs to prevent duplicates
             cursor.use {
                 val idIndex = it.getColumnIndexOrThrow(COLUMN_NEI_ID)
                 val nameIndex = it.getColumnIndexOrThrow(COLUMN_NEI_NAME)
@@ -969,19 +976,83 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
                 val buttonPathIndex = it.getColumnIndex(COLUMN_NEI_BUTTON_PATH)
                 
                 while (it.moveToNext()) {
-                    neighborhoods.add(
-                        NeighborhoodData(
-                            id = it.getLong(idIndex),
-                            name = it.getString(nameIndex),
-                            cardPath = it.getStringOrNull(cardPathIndex),
-                            buttonPath = it.getStringOrNull(buttonPathIndex)
+                    val neiId = it.getLong(idIndex)
+                    // Only add if we haven't seen this neighborhood ID before
+                    if (seenIds.add(neiId)) {
+                        neighborhoods.add(
+                            NeighborhoodData(
+                                id = neiId,
+                                name = it.getString(nameIndex),
+                                cardPath = it.getStringOrNull(cardPathIndex),
+                                buttonPath = it.getStringOrNull(buttonPathIndex)
+                            )
                         )
-                    )
+                    }
                 }
             }
             return neighborhoods
         } catch (e: Exception) {
             Log.e(TAG, "Error getting neighborhoods: ${e.message}", e)
+            return emptyList()
+        } finally {
+            rwLock.readLock().unlock()
+        }
+    }
+    
+    /**
+     * Get neighborhoods for multiple expansions (single query to avoid duplicates)
+     * This is more efficient than calling getNeighborhoods() multiple times
+     */
+    fun getNeighborhoodsForExpansions(expIds: List<Long>): List<NeighborhoodData> {
+        rwLock.readLock().lock()
+        try {
+            val db = readableDatabase
+            if (expIds.isEmpty()) {
+                return emptyList()
+            }
+            
+            // Build query with IN clause for all expansion IDs
+            val placeholders = expIds.joinToString(",") { "?" }
+            val query = """
+                SELECT DISTINCT 
+                    $COLUMN_NEI_ID, 
+                    $COLUMN_NEI_NAME, 
+                    $COLUMN_NEI_CARD_PATH, 
+                    $COLUMN_NEI_BUTTON_PATH
+                FROM $TABLE_NEIGHBORHOODS
+                WHERE $COLUMN_EXP_ID IN ($placeholders) OR $COLUMN_EXP_ID = 1
+                ORDER BY $COLUMN_NEI_NAME ASC
+            """.trimIndent()
+            
+            val args = expIds.map { it.toString() }.toTypedArray()
+            val cursor = db.rawQuery(query, args)
+            
+            val neighborhoods = mutableListOf<NeighborhoodData>()
+            val seenIds = mutableSetOf<Long>() // Track seen neighborhood IDs to prevent duplicates
+            cursor.use {
+                val idIndex = it.getColumnIndexOrThrow(COLUMN_NEI_ID)
+                val nameIndex = it.getColumnIndexOrThrow(COLUMN_NEI_NAME)
+                val cardPathIndex = it.getColumnIndex(COLUMN_NEI_CARD_PATH)
+                val buttonPathIndex = it.getColumnIndex(COLUMN_NEI_BUTTON_PATH)
+                
+                while (it.moveToNext()) {
+                    val neiId = it.getLong(idIndex)
+                    // Only add if we haven't seen this neighborhood ID before
+                    if (seenIds.add(neiId)) {
+                        neighborhoods.add(
+                            NeighborhoodData(
+                                id = neiId,
+                                name = it.getString(nameIndex),
+                                cardPath = it.getStringOrNull(cardPathIndex),
+                                buttonPath = it.getStringOrNull(buttonPathIndex)
+                            )
+                        )
+                    }
+                }
+            }
+            return neighborhoods
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting neighborhoods for expansions: ${e.message}", e)
             return emptyList()
         } finally {
             rwLock.readLock().unlock()
@@ -1062,16 +1133,23 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
         rwLock.readLock().lock()
         try {
             val db = readableDatabase
-            val cursor = db.query(
-                TABLE_LOCATIONS,
-                arrayOf(COLUMN_LOC_ID, COLUMN_LOC_NAME, COLUMN_LOC_BUTTON_PATH, COLUMN_LOC_SORT),
-                "$COLUMN_NEI_ID = ?",
-                arrayOf(neiId.toString()),
-                null, null,
-                "$COLUMN_LOC_SORT ASC, $COLUMN_LOC_NAME ASC"
+            // Use DISTINCT to ensure unique locations (in case same location appears in multiple expansions)
+            val cursor = db.rawQuery(
+                """
+                SELECT DISTINCT 
+                    $COLUMN_LOC_ID, 
+                    $COLUMN_LOC_NAME, 
+                    $COLUMN_LOC_BUTTON_PATH, 
+                    $COLUMN_LOC_SORT
+                FROM $TABLE_LOCATIONS
+                WHERE $COLUMN_NEI_ID = ?
+                ORDER BY $COLUMN_LOC_SORT ASC, $COLUMN_LOC_NAME ASC
+                """.trimIndent(),
+                arrayOf(neiId.toString())
             )
             
             val locations = mutableListOf<LocationData>()
+            val seenIds = mutableSetOf<Long>() // Track seen location IDs to prevent duplicates
             cursor.use {
                 val idIndex = it.getColumnIndexOrThrow(COLUMN_LOC_ID)
                 val nameIndex = it.getColumnIndexOrThrow(COLUMN_LOC_NAME)
@@ -1079,14 +1157,18 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
                 val sortIndex = it.getColumnIndex(COLUMN_LOC_SORT)
                 
                 while (it.moveToNext()) {
-                    locations.add(
-                        LocationData(
-                            id = it.getLong(idIndex),
-                            name = it.getString(nameIndex),
-                            buttonPath = it.getStringOrNull(buttonPathIndex),
-                            sort = it.getInt(sortIndex)
+                    val locId = it.getLong(idIndex)
+                    // Only add if we haven't seen this location ID before
+                    if (seenIds.add(locId)) {
+                        locations.add(
+                            LocationData(
+                                id = locId,
+                                name = it.getString(nameIndex),
+                                buttonPath = it.getStringOrNull(buttonPathIndex),
+                                sort = it.getInt(sortIndex)
+                            )
                         )
-                    )
+                    }
                 }
             }
             return locations
@@ -1136,16 +1218,27 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
                 Log.d(TAG, "Excluding location IDs: ${excludeIds.joinToString(", ")}")
             }
             
-            val cursor = db.query(
-                TABLE_LOCATIONS,
-                arrayOf(COLUMN_LOC_ID, COLUMN_LOC_NAME, COLUMN_LOC_BUTTON_PATH, COLUMN_NEI_ID, COLUMN_EXP_ID, COLUMN_LOC_SORT),
-                whereClause,
-                if (whereArgs.isNotEmpty()) whereArgs.toTypedArray() else null,
-                null, null,
-                "$COLUMN_LOC_SORT ASC, $COLUMN_LOC_NAME ASC"
+            // Use DISTINCT to ensure unique locations (in case same location appears in multiple expansions)
+            val query = """
+                SELECT DISTINCT 
+                    $COLUMN_LOC_ID, 
+                    $COLUMN_LOC_NAME, 
+                    $COLUMN_LOC_BUTTON_PATH, 
+                    $COLUMN_NEI_ID, 
+                    $COLUMN_EXP_ID, 
+                    $COLUMN_LOC_SORT
+                FROM $TABLE_LOCATIONS
+                WHERE $whereClause
+                ORDER BY $COLUMN_LOC_SORT ASC, $COLUMN_LOC_NAME ASC
+            """.trimIndent()
+            
+            val cursor = db.rawQuery(
+                query,
+                if (whereArgs.isNotEmpty()) whereArgs.toTypedArray() else null
             )
             
             val locations = mutableListOf<LocationData>()
+            val seenIds = mutableSetOf<Long>() // Track seen location IDs to prevent duplicates
             cursor.use {
                 val idIndex = it.getColumnIndexOrThrow(COLUMN_LOC_ID)
                 val nameIndex = it.getColumnIndexOrThrow(COLUMN_LOC_NAME)
@@ -1155,16 +1248,20 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
                 val sortIndex = it.getColumnIndex(COLUMN_LOC_SORT)
                 
                 while (it.moveToNext()) {
-                    locations.add(
-                        LocationData(
-                            id = it.getLong(idIndex),
-                            name = it.getString(nameIndex),
-                            buttonPath = it.getStringOrNull(buttonPathIndex),
-                            neiId = it.getLongOrNull(neiIdIndex),
-                            expId = it.getLongOrNull(expIdIndex),
-                            sort = if (sortIndex >= 0 && !it.isNull(sortIndex)) it.getInt(sortIndex) else 0
+                    val locId = it.getLong(idIndex)
+                    // Only add if we haven't seen this location ID before
+                    if (seenIds.add(locId)) {
+                        locations.add(
+                            LocationData(
+                                id = locId,
+                                name = it.getString(nameIndex),
+                                buttonPath = it.getStringOrNull(buttonPathIndex),
+                                neiId = it.getLongOrNull(neiIdIndex),
+                                expId = it.getLongOrNull(expIdIndex),
+                                sort = if (sortIndex >= 0 && !it.isNull(sortIndex)) it.getInt(sortIndex) else 0
+                            )
                         )
-                    )
+                    }
                 }
             }
             Log.d(TAG, "getOtherWorldLocations: Found ${locations.size} locations with query: $whereClause, args: ${whereArgs.joinToString(", ")}")

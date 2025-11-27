@@ -167,27 +167,31 @@ class AHFlyweightFactoryAdapter private constructor(context: Context) {
                 val db = UnifiedCardDatabaseHelper.getInstance(appContext)
                 val enabledExpansions = gameState.getSelectedExpansions(GameType.ARKHAM)
                 
-                // Get neighborhoods for enabled expansions
-                val allNeighborhoods = mutableListOf<NeighborhoodAdapter>()
+                // Get neighborhoods for enabled expansions using a single query
+                // Map expansion names to IDs
+                val expIds = mutableListOf<Long>()
                 for (expansion in enabledExpansions) {
-                    // Find expansion ID in unified DB
                     val expId = getExpansionIdByName(expansion)
                     if (expId > 0) {
-                        val neighborhoods = db.getNeighborhoods(expId)
-                        neighborhoods.forEach { nei ->
-                            allNeighborhoods.add(
-                                NeighborhoodAdapter(
-                                    nei.id,
-                                    nei.name,
-                                    nei.cardPath,
-                                    nei.buttonPath
-                                )
-                            )
-                        }
+                        expIds.add(expId)
                     }
                 }
                 
-                allNeighborhoods
+                // Always include base game (ID 1)
+                if (!expIds.contains(1L)) {
+                    expIds.add(1L)
+                }
+                
+                // Use single query method to get all neighborhoods at once (avoids duplicates)
+                val neighborhoods = db.getNeighborhoodsForExpansions(expIds)
+                neighborhoods.map { nei ->
+                    NeighborhoodAdapter(
+                        nei.id,
+                        nei.name,
+                        nei.cardPath,
+                        nei.buttonPath
+                    )
+                }
             }
         }
     }

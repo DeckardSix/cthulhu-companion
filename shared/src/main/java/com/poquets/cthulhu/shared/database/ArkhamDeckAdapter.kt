@@ -27,6 +27,8 @@ class ArkhamDeckAdapter(private val context: Context) {
     /**
      * Get cards for a neighborhood
      * Queries database directly to ensure cards are available even if decks haven't been initialized
+     * Filters by selected expansions: includes cards that belong to at least one selected expansion,
+     * but excludes cards that belong to any non-selected expansion
      */
     suspend fun getNeighborhoodCards(neighborhoodId: Long): List<UnifiedCard> = withContext(Dispatchers.IO) {
         // First try to get from initialized deck (for performance)
@@ -38,26 +40,107 @@ class ArkhamDeckAdapter(private val context: Context) {
             return@withContext deckCards
         }
         
-        // Otherwise, query directly from database
+        // Otherwise, query directly from database with expansion filtering
         // This ensures cards are available even if decks haven't been initialized
         Log.d("ArkhamDeckAdapter", "Deck not initialized for neighborhood $neighborhoodId, querying database directly")
-        val allCards = repository.getCards(GameType.ARKHAM)
-        Log.d("ArkhamDeckAdapter", "Found ${allCards.size} total Arkham cards in database")
-        val neighborhoodCards = allCards
+        
+        // Get selected expansions (BASE is always included)
+        val selectedExpansions = gameState.getSelectedExpansions(GameType.ARKHAM).toMutableSet()
+        if (!selectedExpansions.contains("BASE")) {
+            selectedExpansions.add("BASE")
+        }
+        
+        Log.d("ArkhamDeckAdapter", "Filtering cards for neighborhood $neighborhoodId with expansions: $selectedExpansions")
+        
+        // Get all cards for this neighborhood (across all expansions)
+        val allNeighborhoodCards = repository.getCards(GameType.ARKHAM)
             .filter { it.neighborhoodId == neighborhoodId }
             .filter { it.encountered == "NONE" }
-        Log.d("ArkhamDeckAdapter", "Found ${neighborhoodCards.size} cards for neighborhood $neighborhoodId (unencountered)")
-        neighborhoodCards
+        
+        Log.d("ArkhamDeckAdapter", "Found ${allNeighborhoodCards.size} total cards for neighborhood $neighborhoodId (unencountered)")
+        
+        // Filter by expansion: match original SQL logic from AHFlyweightFactory.getCurrentNeighborhoodsCards()
+        // Include cards that belong to at least one selected expansion
+        // BUT exclude cards that belong to any non-selected expansion
+        // Since a card can have multiple entries (one per expansion), we need to:
+        // 1. Group by card_id to see all expansions a card belongs to
+        // 2. Include card if it has at least one selected expansion AND no non-selected expansions
+        val cardsByCardId = allNeighborhoodCards.groupBy { it.cardId }
+        val filteredCards = cardsByCardId.filter { (cardId, cardEntries) ->
+            // Get all expansions this card belongs to
+            val cardExpansions = cardEntries.map { it.expansion }.toSet()
+            
+            // Check if card belongs to at least one selected expansion
+            val hasSelectedExpansion = cardExpansions.any { it in selectedExpansions }
+            
+            // Check if card belongs to any non-selected expansion
+            val hasNonSelectedExpansion = cardExpansions.any { it !in selectedExpansions }
+            
+            // Include if: has at least one selected expansion AND no non-selected expansions
+            val include = hasSelectedExpansion && !hasNonSelectedExpansion
+            
+            if (!include) {
+                Log.d("ArkhamDeckAdapter", "Excluding card $cardId: expansions=$cardExpansions, selected=$selectedExpansions, hasSelected=$hasSelectedExpansion, hasNonSelected=$hasNonSelectedExpansion")
+            }
+            include
+        }.values.map { cardEntries ->
+            // For cards that pass the filter, prefer BASE entry if available, otherwise use first entry
+            cardEntries.find { it.expansion == "BASE" } ?: cardEntries.first()
+        }
+        
+        Log.d("ArkhamDeckAdapter", "Found ${filteredCards.size} cards for neighborhood $neighborhoodId after expansion filtering")
+        filteredCards
     }
     
     /**
      * Get other world cards
+     * Filters by selected expansions: includes cards that belong to at least one selected expansion,
+     * but excludes cards that belong to any non-selected expansion
      */
     suspend fun getOtherWorldCards(): List<UnifiedCard> = withContext(Dispatchers.IO) {
+        // Get selected expansions (BASE is always included)
+        val selectedExpansions = gameState.getSelectedExpansions(GameType.ARKHAM).toMutableSet()
+        if (!selectedExpansions.contains("BASE")) {
+            selectedExpansions.add("BASE")
+        }
+        
+        Log.d("ArkhamDeckAdapter", "Filtering otherworld cards with expansions: $selectedExpansions")
+        
         // Other world cards have null neighborhood_id
-        repository.getCards(GameType.ARKHAM)
+        val allOtherWorldCards = repository.getCards(GameType.ARKHAM)
             .filter { it.neighborhoodId == null }
             .filter { it.encountered == "NONE" }
+        
+        Log.d("ArkhamDeckAdapter", "Found ${allOtherWorldCards.size} total otherworld cards (unencountered)")
+        
+        // Filter by expansion: same logic as neighborhood cards
+        // Include cards that belong to at least one selected expansion
+        // BUT exclude cards that belong to any non-selected expansion
+        val cardsByCardId = allOtherWorldCards.groupBy { it.cardId }
+        val filteredCards = cardsByCardId.filter { (cardId, cardEntries) ->
+            // Get all expansions this card belongs to
+            val cardExpansions = cardEntries.map { it.expansion }.toSet()
+            
+            // Check if card belongs to at least one selected expansion
+            val hasSelectedExpansion = cardExpansions.any { it in selectedExpansions }
+            
+            // Check if card belongs to any non-selected expansion
+            val hasNonSelectedExpansion = cardExpansions.any { it !in selectedExpansions }
+            
+            // Include if: has at least one selected expansion AND no non-selected expansions
+            val include = hasSelectedExpansion && !hasNonSelectedExpansion
+            
+            if (!include) {
+                Log.d("ArkhamDeckAdapter", "Excluding otherworld card $cardId: expansions=$cardExpansions, selected=$selectedExpansions, hasSelected=$hasSelectedExpansion, hasNonSelected=$hasNonSelectedExpansion")
+            }
+            include
+        }.values.map { cardEntries ->
+            // For cards that pass the filter, prefer BASE entry if available, otherwise use first entry
+            cardEntries.find { it.expansion == "BASE" } ?: cardEntries.first()
+        }
+        
+        Log.d("ArkhamDeckAdapter", "Found ${filteredCards.size} otherworld cards after expansion filtering")
+        filteredCards
     }
     
     /**

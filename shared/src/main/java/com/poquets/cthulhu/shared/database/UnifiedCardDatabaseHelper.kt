@@ -1292,33 +1292,94 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
             val db = readableDatabase
             val colorIdsStr = colorIds.joinToString(",")
             
-            // Find encounters where:
-            // 1. encounter.locID = locationId
-            // 2. The encounter's card has at least one of the colorIds (via CardToColor)
+            // Debug: Check how many encounters exist for this location (without color filter)
+            val debugQuery1 = """
+                SELECT COUNT(*) as count
+                FROM $TABLE_ENCOUNTERS e
+                WHERE e.$COLUMN_LOC_ID = ?
+            """.trimIndent()
+            val debugCursor1 = db.rawQuery(debugQuery1, arrayOf(locationId.toString()))
+            var totalEncountersForLocation = 0
+            debugCursor1.use {
+                if (it.moveToFirst()) {
+                    totalEncountersForLocation = it.getInt(0)
+                }
+            }
+            Log.d(TAG, "DEBUG: Location $locationId has $totalEncountersForLocation total encounters")
+            
+            // Debug: Check how many cards have the specified colors
+            val debugQuery2 = """
+                SELECT COUNT(DISTINCT c.$COLUMN_CARD_ID) as count
+                FROM $TABLE_CARDS c
+                INNER JOIN $TABLE_CARD_TO_COLOR ctc ON c.$COLUMN_CARD_ID = ctc.$COLUMN_CTC_CARD_ID
+                WHERE c.$COLUMN_GAME_TYPE = ?
+                    AND ctc.$COLUMN_CTC_COLOR_ID IN ($colorIdsStr)
+            """.trimIndent()
+            val debugCursor2 = db.rawQuery(debugQuery2, arrayOf(gameType.value))
+            var totalCardsWithColors = 0
+            debugCursor2.use {
+                if (it.moveToFirst()) {
+                    totalCardsWithColors = it.getInt(0)
+                }
+            }
+            Log.d(TAG, "DEBUG: Found $totalCardsWithColors cards with colors $colorIds")
+            
+            // Find cards that:
+            // 1. Have at least one encounter for the selected location (locID = locationId)
+            // 2. Have at least one of the selected colors
+            // This is a two-step process:
+            // Step 1: Find cards that have encounters for this location
+            // Step 2: Filter those cards to only include ones with the selected colors
             val query = """
                 SELECT DISTINCT 
-                    e.$COLUMN_ENC_ID,
-                    e.$COLUMN_ENC_TEXT,
-                    e.$COLUMN_LOC_ID,
                     c.$COLUMN_CARD_ID
-                FROM $TABLE_ENCOUNTERS e
-                INNER JOIN $TABLE_CARD_TO_ENCOUNTER cte ON e.$COLUMN_ENC_ID = cte.$COLUMN_CTE_ENC_ID
-                INNER JOIN $TABLE_CARDS c ON cte.$COLUMN_CTE_CARD_ID = c.$COLUMN_CARD_ID
+                FROM $TABLE_CARDS c
+                INNER JOIN $TABLE_CARD_TO_ENCOUNTER cte ON c.$COLUMN_CARD_ID = cte.$COLUMN_CTE_CARD_ID
+                INNER JOIN $TABLE_ENCOUNTERS e ON cte.$COLUMN_CTE_ENC_ID = e.$COLUMN_ENC_ID
                 INNER JOIN $TABLE_CARD_TO_COLOR ctc ON c.$COLUMN_CARD_ID = ctc.$COLUMN_CTC_CARD_ID
                 WHERE e.$COLUMN_LOC_ID = ?
                     AND c.$COLUMN_GAME_TYPE = ?
                     AND ctc.$COLUMN_CTC_COLOR_ID IN ($colorIdsStr)
-                ORDER BY e.$COLUMN_ENC_ID ASC
             """.trimIndent()
             
             val cursor = db.rawQuery(query, arrayOf(locationId.toString(), gameType.value))
             
-            val results = mutableListOf<EncounterWithCardData>()
+            val cardIds = mutableSetOf<String>()
             cursor.use {
+                val cardIdIndex = it.getColumnIndexOrThrow(COLUMN_CARD_ID)
+                while (it.moveToNext()) {
+                    cardIds.add(it.getString(cardIdIndex))
+                }
+            }
+            
+            Log.d(TAG, "Found ${cardIds.size} unique cards for location $locationId with colors $colorIds: ${cardIds.take(10).joinToString(", ")}${if (cardIds.size > 10) "..." else ""}")
+            
+            // Now get all encounters for these cards (not just for the selected location)
+            // This is because a card can have encounters for multiple locations
+            if (cardIds.isEmpty()) {
+                return emptyList()
+            }
+            
+            val cardIdsStr = cardIds.joinToString("','", "'", "'")
+            val encounterQuery = """
+                SELECT DISTINCT 
+                    e.$COLUMN_ENC_ID,
+                    e.$COLUMN_ENC_TEXT,
+                    e.$COLUMN_LOC_ID,
+                    cte.$COLUMN_CTE_CARD_ID
+                FROM $TABLE_ENCOUNTERS e
+                INNER JOIN $TABLE_CARD_TO_ENCOUNTER cte ON e.$COLUMN_ENC_ID = cte.$COLUMN_CTE_ENC_ID
+                WHERE cte.$COLUMN_CTE_CARD_ID IN ($cardIdsStr)
+                ORDER BY e.$COLUMN_ENC_ID ASC
+            """.trimIndent()
+            
+            val encounterCursor = db.rawQuery(encounterQuery, null)
+            val results = mutableListOf<EncounterWithCardData>()
+            encounterCursor.use {
                 val encIdIndex = it.getColumnIndexOrThrow(COLUMN_ENC_ID)
                 val encTextIndex = it.getColumnIndexOrThrow(COLUMN_ENC_TEXT)
                 val locIdIndex = it.getColumnIndexOrThrow(COLUMN_LOC_ID)
-                val cardIdIndex = it.getColumnIndexOrThrow(COLUMN_CARD_ID)
+                val cardIdIndex = it.getColumnIndexOrThrow(COLUMN_CTE_CARD_ID)
                 
                 while (it.moveToNext()) {
                     results.add(
@@ -1332,7 +1393,7 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
                 }
             }
             
-            Log.d(TAG, "Found ${results.size} encounters for location $locationId with colors $colorIds")
+            Log.d(TAG, "Found ${results.size} total encounters for ${cardIds.size} cards matching location $locationId with colors $colorIds")
             return results
         } catch (e: Exception) {
             Log.e(TAG, "Error finding encounters by location and colors: ${e.message}", e)

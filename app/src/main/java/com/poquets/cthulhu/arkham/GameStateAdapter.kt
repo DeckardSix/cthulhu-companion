@@ -279,50 +279,58 @@ class GameStateAdapter private constructor(context: Context) {
     /**
      * Get filtered other world deck (compatible with GameState.getFilteredOtherWorldDeck())
      * 
-     * NEW LOGIC: Instead of filtering cards by color, we:
-     * 1. Find encounters that match the selected location AND card colors
-     * 2. Pick ONE encounter at random
-     * 3. Return the card containing that encounter
+     * ORIGINAL LOGIC: Filter cards by color only (not by location)
+     * - Get all other world cards
+     * - Filter to cards that have at least one matching color
+     * - Return the filtered list (the caller will pick one randomly)
      */
     fun getFilteredOtherWorldDeck(): List<OtherWorldCardAdapter> {
         val selectedColors = getSelectedOtherWorldColors()
-        val locationId = getSelectedOtherWorldLocation()
         
-        // If no colors or location selected, return the full deck (fallback behavior)
-        if (selectedColors.isEmpty() || locationId == null) {
-            Log.d("GameStateAdapter", "No colors or location selected, returning full deck")
+        // If no colors selected, return the full deck (fallback behavior)
+        if (selectedColors.isEmpty()) {
+            Log.d("GameStateAdapter", "No colors selected, returning full deck")
             return getAllOtherWorldDeck()
         }
 
         val selectedColorIds = selectedColors.map { it.getID() }
+        Log.d("GameStateAdapter", "Filtering other world cards by colors: $selectedColorIds")
         
-        // Find encounters that match the location and colors
-        val db = UnifiedCardDatabaseHelper.getInstance(appContext)
-        val matchingEncounters = runBlocking {
-            withContext(Dispatchers.IO) {
-                db.findEncountersByLocationAndColors(locationId, selectedColorIds, GameType.ARKHAM)
+        // Get all other world cards
+        val allCards = getAllOtherWorldDeck()
+        Log.d("GameStateAdapter", "Total other world cards: ${allCards.size}")
+        
+        // Filter cards that have at least one matching color
+        val filteredCards = allCards.filter { card ->
+            // Special case: "Stars are Right" card (ID 4242) is always included
+            if (card.getID() == 4242L) {
+                true
+            } else {
+                val cardColors = card.getOtherWorldColors()
+                val hasMatchingColor = cardColors.any { cardColor ->
+                    selectedColorIds.contains(cardColor.getID())
+                }
+                hasMatchingColor
             }
         }
         
-        if (matchingEncounters.isEmpty()) {
-            Log.w("GameStateAdapter", "No encounters found for location $locationId with colors $selectedColorIds, returning full deck")
-            return getAllOtherWorldDeck()
+        Log.d("GameStateAdapter", "Filtered to ${filteredCards.size} cards with matching colors")
+        
+        if (filteredCards.isEmpty()) {
+            Log.w("GameStateAdapter", "No cards found with colors $selectedColorIds, returning full deck")
+            return allCards
         }
         
-        // Pick one encounter at random
-        val selectedEncounter = matchingEncounters[rand.nextInt(matchingEncounters.size)]
-        Log.d("GameStateAdapter", "Selected random encounter ${selectedEncounter.encounterId} from card ${selectedEncounter.cardId} (out of ${matchingEncounters.size} matches)")
+        // Shuffle the filtered cards to ensure randomness
+        val shuffledCards = filteredCards.toMutableList()
+        Collections.shuffle(shuffledCards, rand)
         
-        // Find the card containing this encounter
-        val allCards = getAllOtherWorldDeck()
-        val card = allCards.find { it.getID().toString() == selectedEncounter.cardId }
+        // Pick one card at random
+        val randomIndex = rand.nextInt(shuffledCards.size)
+        val selectedCard = shuffledCards[randomIndex]
+        Log.d("GameStateAdapter", "Selected random card ${selectedCard.getID()} (index $randomIndex out of ${shuffledCards.size} filtered cards)")
         
-        return if (card != null) {
-            listOf(card)
-        } else {
-            Log.w("GameStateAdapter", "Card ${selectedEncounter.cardId} not found in deck, returning full deck")
-            getAllOtherWorldDeck()
-        }
+        return listOf(selectedCard)
     }
     
     /**

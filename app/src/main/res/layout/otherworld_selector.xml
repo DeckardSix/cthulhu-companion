@@ -1,48 +1,63 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/rootLayout"
     android:layout_width="fill_parent"
     android:layout_height="fill_parent"
     android:background="@drawable/cthulhu_background">
-    <LinearLayout
-        android:orientation="vertical"
+    
+    <!-- Bottom buttons container -->
+    <RelativeLayout
+        android:id="@+id/bottomButtonsContainer"
         android:layout_width="fill_parent"
-        android:layout_height="fill_parent">
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:orientation="horizontal">
+        <Button 
+            android:id="@+id/open_neighborhoods" 
+            android:layout_height="100dp"
+            android:layout_width="100dp"
+            android:background="@drawable/ae_btn"
+            android:layout_alignParentLeft="true"
+            android:onClick="openNeighborhood" />
+        <Button 
+            android:id="@+id/open_encounterhx" 
+            android:layout_height="100dp"
+            android:layout_width="100dp"
+            android:background="@drawable/history_back"
+            android:layout_alignParentRight="true"
+            android:onClick="openEncHx" />
+    </RelativeLayout>
+    
+    <!-- Centered ListView container -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:layout_above="@id/bottomButtonsContainer">
         <ListView 
             android:id="@+id/locationListView" 
             android:layout_width="match_parent" 
-            android:layout_height="0dip"
-            android:choiceMode="multipleChoice"
-            android:layout_weight="1" />
-        <RelativeLayout
-            android:layout_width="fill_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
-            <Button 
-                android:id="@+id/open_neighborhoods" 
-                android:layout_height="100dp"
-                android:layout_width="100dp"
-                android:background="@drawable/ae_btn"
-                android:layout_alignParentLeft="true"
-                android:onClick="openNeighborhood" />
-            <Button 
-                android:id="@+id/open_encounterhx" 
-                android:layout_height="100dp"
-                android:layout_width="100dp"
-                android:background="@drawable/history_back"
-                android:layout_alignParentRight="true"
-                android:onClick="openEncHx" />
-        </RelativeLayout>
+            android:choiceMode="multipleChoice" />
     </LinearLayout>
-    <androidx.appcompat.widget.Toolbar
-        android:id="@+id/toolbar"
-        android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        android:background="@android:color/transparent"
-        android:elevation="8dp"
-        android:clickable="true"
-        android:focusable="true"
-        android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
-        app:popupTheme="@style/ThemeOverlay.AppCompat.Light" />
-</FrameLayout>
+    
+    <!-- Back button positioned like question mark in expansion selector -->
+    <RelativeLayout
+        android:id="@+id/backButtonContainer"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="16dp">
+        <FrameLayout
+            android:id="@+id/backButtonFrameLayout"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentLeft="true"
+            android:layout_centerVertical="true"
+            android:layout_marginLeft="16dp" />
+    </RelativeLayout>
+</RelativeLayout>
 

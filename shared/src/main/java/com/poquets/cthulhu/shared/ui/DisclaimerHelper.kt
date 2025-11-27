@@ -5,9 +5,12 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.util.TypedValue
 import android.view.Gravity
+import android.view.View
 import android.widget.CheckBox
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.RelativeLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.core.widget.CompoundButtonCompat
@@ -71,6 +74,56 @@ object DisclaimerHelper {
             16f,
             context.resources.displayMetrics
         ).toInt()
+        
+        // Add top padding to account for status bar
+        val statusBarHeight = getStatusBarHeight(context)
+        contentLayout.setPadding(0, statusBarHeight + padding, 0, 0)
+        
+        // Create back button container at the top
+        val backButtonContainer = RelativeLayout(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            setPadding(padding, padding, padding, padding / 2)
+        }
+        
+        val backButtonFrameLayout = FrameLayout(context).apply {
+            layoutParams = RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.WRAP_CONTENT,
+                RelativeLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                addRule(RelativeLayout.ALIGN_PARENT_LEFT)
+                addRule(RelativeLayout.CENTER_VERTICAL)
+                setMargins(padding, 0, 0, 0)
+            }
+        }
+        
+        val paddingPx = 5
+        val iconSize = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP,
+            32f,
+            context.resources.displayMetrics
+        ).toInt()
+        
+        val backButton = ImageView(context).apply {
+            setImageResource(android.R.drawable.ic_menu_revert)
+            contentDescription = "Back"
+            setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+            
+            val totalSize = iconSize + (paddingPx * 2)
+            layoutParams = FrameLayout.LayoutParams(totalSize, totalSize).apply {
+                gravity = Gravity.START or Gravity.CENTER_VERTICAL
+            }
+            
+            setColorFilter(0xFFFFFFFF.toInt())
+            isClickable = true
+            isFocusable = true
+        }
+        
+        backButtonFrameLayout.addView(backButton)
+        backButtonContainer.addView(backButtonFrameLayout)
+        contentLayout.addView(backButtonContainer)
         
         // Create title TextView - centered and large
         val titleView = TextView(context)
@@ -145,10 +198,15 @@ object DisclaimerHelper {
             }
             dialog.dismiss()
         }
-        builder.setCancelable(false)
+        builder.setCancelable(true) // Allow back button to dismiss
         
         val dialog = builder.create()
         dialog.show()
+        
+        // Set back button click listener after dialog is shown
+        backButton.setOnClickListener {
+            dialog.dismiss()
+        }
         
         // Set dialog background to match app theme (dark/transparent)
         dialog.window?.let { window ->
@@ -209,6 +267,26 @@ object DisclaimerHelper {
             checkbox,
             android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE)
         )
+    }
+    
+    /**
+     * Get status bar height
+     */
+    private fun getStatusBarHeight(context: Context): Int {
+        var result = 0
+        val resourceId = context.resources.getIdentifier("status_bar_height", "dimen", "android")
+        if (resourceId > 0) {
+            result = context.resources.getDimensionPixelSize(resourceId)
+        }
+        // If we can't get it from resources, use a default value (typically 24dp on modern devices)
+        if (result == 0) {
+            result = TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP,
+                24f,
+                context.resources.displayMetrics
+            ).toInt()
+        }
+        return result
     }
 }
 

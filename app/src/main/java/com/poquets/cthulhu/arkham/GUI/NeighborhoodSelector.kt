@@ -4,7 +4,7 @@ import android.content.Intent
 import android.graphics.Typeface
 import android.os.Bundle
 import android.util.Log
-import android.view.MenuItem
+import android.util.TypedValue
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
@@ -28,10 +28,13 @@ class NeighborhoodSelector : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.main)
         
-        // Set up toolbar as action bar
-        val toolbar = findViewById<androidx.appcompat.widget.Toolbar>(R.id.toolbar)
-        setSupportActionBar(toolbar)
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+        // Add padding at top to account for status bar (like the card screen does with Toolbar)
+        val rootLayout = findViewById<RelativeLayout>(R.id.rootLayout)
+        val statusBarHeight = getStatusBarHeight()
+        rootLayout.setPadding(0, statusBarHeight, 0, 0)
+        
+        // Add back button positioned like question mark in expansion selector
+        addBackButton()
         
         // Initialize factories
         AHFlyweightFactory.Init(applicationContext)
@@ -126,15 +129,54 @@ class NeighborhoodSelector : AppCompatActivity() {
         }
     }
     
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
-            android.R.id.home -> {
-                // Handle back button press
-                finish()
-                true
+    private fun addBackButton() {
+        val backButtonFrameLayout: FrameLayout? = findViewById(R.id.backButtonFrameLayout)
+        
+        if (backButtonFrameLayout != null) {
+            val paddingPx = 5
+            val iconSize = TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP,
+                32f,
+                resources.displayMetrics
+            ).toInt()
+            
+            val backButton = ImageView(this).apply {
+                setImageResource(android.R.drawable.ic_menu_revert)
+                contentDescription = "Back"
+                setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+                
+                val totalSize = iconSize + (paddingPx * 2)
+                layoutParams = FrameLayout.LayoutParams(totalSize, totalSize).apply {
+                    gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
+                }
+                
+                setColorFilter(0xFFFFFFFF.toInt())
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    finish()
+                }
             }
-            else -> super.onOptionsItemSelected(item)
+            
+            backButtonFrameLayout.addView(backButton)
         }
+    }
+    
+    private fun getStatusBarHeight(): Int {
+        var result = 0
+        val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
+        if (resourceId > 0) {
+            result = resources.getDimensionPixelSize(resourceId)
+        }
+        // If we can't get it from resources, use a default value (typically 24dp on modern devices)
+        if (result == 0) {
+            result = TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP,
+                24f,
+                resources.displayMetrics
+            ).toInt()
+        }
+        return result
     }
     
     fun openEncHx(view: View) {

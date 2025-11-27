@@ -1,7 +1,14 @@
 package com.poquets.cthulhu.arkham.GUI
 
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
+import android.graphics.Shader
 import android.graphics.Typeface
+import android.graphics.LinearGradient
 import android.os.Bundle
 import android.util.DisplayMetrics
 import android.util.Log
@@ -169,12 +176,11 @@ class ArkhamCardFragment : Fragment() {
                 android.graphics.Color.TRANSPARENT
             }
             
-            // Set background color on main thread
+            // Set background to cthulhu_background image (not just a color)
             withContext(Dispatchers.Main) {
-                if (backgroundColor != android.graphics.Color.TRANSPARENT) {
-                    frameLayout.setBackgroundColor(backgroundColor)
-                    Log.d("ArkhamCardFragment", "Set background color: ${String.format("#%08X", backgroundColor)}")
-                }
+                // Always use cthulhu_background as the base background
+                frameLayout.setBackgroundResource(R.drawable.cthulhu_background)
+                Log.d("ArkhamCardFragment", "Set background to cthulhu_background")
             }
             
             // Load and overlay card image
@@ -200,6 +206,7 @@ class ArkhamCardFragment : Fragment() {
                     if (cardBitmap != null) {
                         Log.d("ArkhamCardFragment", "Loaded card bitmap: ${cardBitmap.width}x${cardBitmap.height}")
                         withContext(Dispatchers.Main) {
+                            // Display card normally without any modifications
                             val cardImageView = ImageView(requireContext()).apply {
                                 setImageBitmap(cardBitmap)
                                 scaleType = ImageView.ScaleType.FIT_XY
@@ -207,11 +214,6 @@ class ArkhamCardFragment : Fragment() {
                                     FrameLayout.LayoutParams.MATCH_PARENT,
                                     FrameLayout.LayoutParams.MATCH_PARENT
                                 )
-                                // Make otherworld cards semi-transparent so color overlay shows through
-                                if (isOtherWorld) {
-                                    alpha = 0.5f // 50% opacity - color overlay will be visible
-                                    Log.d("ArkhamCardFragment", "Set otherworld card alpha to 0.5")
-                                }
                             }
                             // Insert at position 0 so it's behind the scroll view
                             frameLayout.addView(cardImageView, 0)
@@ -425,6 +427,7 @@ class ArkhamCardFragment : Fragment() {
                         if (cardBitmap != null) {
                             Log.d("ArkhamCardFragment", "Loaded fallback card bitmap from $path: ${cardBitmap.width}x${cardBitmap.height}")
                             withContext(Dispatchers.Main) {
+                                // Display card normally without any modifications
                                 val cardImageView = ImageView(requireContext()).apply {
                                     setImageBitmap(cardBitmap)
                                     scaleType = ImageView.ScaleType.FIT_XY
@@ -432,11 +435,6 @@ class ArkhamCardFragment : Fragment() {
                                         FrameLayout.LayoutParams.MATCH_PARENT,
                                         FrameLayout.LayoutParams.MATCH_PARENT
                                     )
-                                    // Make otherworld cards semi-transparent so color overlay shows through
-                                    if (isOtherWorld) {
-                                        alpha = 0.5f // 50% opacity - color overlay will be visible
-                                        Log.d("ArkhamCardFragment", "Set fallback otherworld card alpha to 0.5")
-                                    }
                                 }
                                 frameLayout.addView(cardImageView, 0)
                                 Log.d("ArkhamCardFragment", "Added fallback card image view")
@@ -616,6 +614,50 @@ class ArkhamCardFragment : Fragment() {
                 Log.w("ArkhamCardFragment", "Error loading icon: ${e.message}", e)
             }
         }
+    }
+    
+    /**
+     * Create a bitmap with transparent top portion (where the colored band is)
+     * to allow the cthulhu_background to show through
+     */
+    private fun createTopTransparentBitmap(bitmap: Bitmap): Bitmap {
+        val width = bitmap.width
+        val height = bitmap.height
+        // Make the top 10-15% transparent (where the colored band typically is)
+        val transparentHeight = (height * 0.15f).toInt()
+        
+        val result = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(result)
+        
+        // Draw the original bitmap first
+        canvas.drawBitmap(bitmap, 0f, 0f, null)
+        
+        // Create a gradient mask that fades from fully transparent at top to fully opaque
+        // The gradient should be fully transparent for most of the top portion, then fade to opaque
+        val gradient = LinearGradient(
+            0f, 0f,
+            0f, transparentHeight.toFloat(),
+            intArrayOf(
+                android.graphics.Color.TRANSPARENT,  // Fully transparent at very top
+                android.graphics.Color.TRANSPARENT,  // Still transparent (most of the band)
+                android.graphics.Color.TRANSPARENT,  // Still transparent
+                android.graphics.Color.BLACK          // Fully opaque (card visible)
+            ),
+            floatArrayOf(0f, 0.6f, 0.8f, 1f),
+            Shader.TileMode.CLAMP
+        )
+        
+        // Apply the gradient mask using DST_IN blend mode
+        // This makes pixels transparent where the gradient is transparent
+        val paint = Paint().apply {
+            shader = gradient
+            xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
+        }
+        
+        // Draw the gradient mask over the top portion
+        canvas.drawRect(0f, 0f, width.toFloat(), transparentHeight.toFloat(), paint)
+        
+        return result
     }
 }
 

@@ -56,32 +56,8 @@ class LocationDeckActivity : AppCompatActivity() {
         
         viewPager = findViewById(R.id.viewpager)
         
-        // Set background color based on neighborhood
-        activityScope.launch {
-            val neighborhood = AHFlyweightFactory.INSTANCE.getNeighborhood(neighborhoodId)
-            if (neighborhood != null) {
-                // Try to load button image and extract color
-                val buttonPath = neighborhood.getNeighborhoodButtonPath()
-                val buttonBitmap = if (buttonPath != null && buttonPath.isNotEmpty()) {
-                    try {
-                        val inputStream = assets.open(buttonPath)
-                        val bitmap = BitmapFactory.decodeStream(inputStream)
-                        inputStream.close()
-                        bitmap
-                    } catch (e: IOException) {
-                        Log.w("LocationDeckActivity", "Could not load button image: ${e.message}")
-                        null
-                    }
-                } else {
-                    null
-                }
-                
-                val neighborhoodColor = ArkhamColorUtils.getNeighborhoodColor(buttonBitmap, neighborhood.getNeighborhoodName())
-                if (neighborhoodColor != android.graphics.Color.TRANSPARENT) {
-                    window.decorView.setBackgroundColor(neighborhoodColor)
-                }
-            }
-        }
+        // Set background to cthulhu_background (not a color)
+        rootLayout.setBackgroundResource(R.drawable.cthulhu_background)
         
         // Load deck
         activityScope.launch {

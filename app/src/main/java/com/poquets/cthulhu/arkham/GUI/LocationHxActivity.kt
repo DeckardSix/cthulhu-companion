@@ -279,16 +279,12 @@ class LocationHxActivity : AppCompatActivity() {
                         getIndependentHeight(title.paddingBottom)
                     )
                     title.text = locationName
-                    // Ensure title text color is visible
-                    title.setTextColor(android.graphics.Color.BLACK)
                     
                     // Don't need to select encounters in our Hx
                     val chooseEncounterBtn = header.findViewById<Button>(R.id.button1)
                     header.removeView(chooseEncounterBtn)
                     
                     val text = LayoutInflater.from(context).inflate(R.layout.encountertext, cardContents, false) as TextView
-                    // Set text color FIRST before setting HTML content to ensure it's not overridden
-                    text.setTextColor(android.graphics.Color.BLACK)
                     // Remove any text appearance that might set white color
                     text.setTextAppearance(android.R.style.TextAppearance)
                     
@@ -296,14 +292,10 @@ class LocationHxActivity : AppCompatActivity() {
                         // Use FROM_HTML_MODE_COMPACT to avoid color overrides from HTML
                         val spanned = HtmlCompat.fromHtml(encounterText, HtmlCompat.FROM_HTML_MODE_COMPACT)
                         text.text = spanned
-                        // Force text color again after HTML is applied (HTML might have color tags)
-                        text.setTextColor(android.graphics.Color.BLACK)
                     } else {
                         text.text = "[No encounter text]"
                         Log.w("LocationHxActivity", "Encounter ${encounter.getID()} has empty text!")
                     }
-                    // Ensure text is visible by setting a semi-transparent background
-                    text.setBackgroundColor(android.graphics.Color.argb(200, 255, 255, 255))
                     text.setPadding(
                         getIndependentWidth(text.paddingLeft),
                         getIndependentHeight(text.paddingTop),
@@ -311,11 +303,20 @@ class LocationHxActivity : AppCompatActivity() {
                         getIndependentHeight(text.paddingBottom)
                     )
                     
-                    // Shade encounters that are not the selected one (compare by ID)
-                    if (encounter.getID() != selectedEncounter.getID()) {
-                        val shadedColor = getColor(R.color.shaded_hx)
-                        header.setBackgroundColor(shadedColor)
-                        text.setBackgroundColor(android.graphics.Color.argb(200, 0, 0, 0))
+                    // Style based on whether this is the selected encounter
+                    val isSelected = encounter.getID() == selectedEncounter.getID()
+                    if (isSelected) {
+                        // Selected section: bold with dark green color
+                        title.setTypeface(title.typeface, android.graphics.Typeface.BOLD)
+                        title.setTextColor(android.graphics.Color.parseColor("#228B22")) // Dark green
+                        text.setTypeface(text.typeface, android.graphics.Typeface.BOLD)
+                        text.setTextColor(android.graphics.Color.parseColor("#228B22")) // Dark green
+                    } else {
+                        // Non-selected section: italic with dark grey color
+                        title.setTypeface(title.typeface, android.graphics.Typeface.ITALIC)
+                        title.setTextColor(android.graphics.Color.parseColor("#808080")) // Dark grey
+                        text.setTypeface(text.typeface, android.graphics.Typeface.ITALIC)
+                        text.setTextColor(android.graphics.Color.parseColor("#808080")) // Dark grey
                     }
                     
                     cardContents.addView(header)

@@ -242,7 +242,21 @@ class ArkhamCardFragment : Fragment() {
         
         // Get encounters
         val encounters = if (isOtherWorld) {
-            otherWorldCard?.getEncounters() ?: emptyList()
+            // For otherworld cards, sort by location name alphabetically (A to Z)
+            // "Other" location should always be at the bottom
+            val unsortedEncounters = otherWorldCard?.getEncounters() ?: emptyList()
+            unsortedEncounters.sortedWith(compareBy<EncounterAdapter> { encounter ->
+                val locationName = encounter.getLocation()?.getLocationName() ?: ""
+                // "Other" should be sorted last, so use "ZZZ" for it
+                if (locationName.equals("Other", ignoreCase = true)) {
+                    "ZZZ"
+                } else {
+                    locationName.uppercase() // Case-insensitive sorting
+                }
+            }.thenBy { encounter ->
+                // Secondary sort by encounter ID for consistency
+                encounter.getID()
+            })
         } else {
             card?.getEncounters() ?: emptyList()
         }

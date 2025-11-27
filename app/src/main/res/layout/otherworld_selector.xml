@@ -2,64 +2,14 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:orientation="vertical"
     android:layout_width="fill_parent"
-    android:layout_height="fill_parent">
+    android:layout_height="fill_parent"
+    android:background="@drawable/cthulhu_background">
     <ListView 
         android:id="@+id/locationListView" 
         android:layout_width="match_parent" 
         android:layout_height="0dip"
         android:choiceMode="multipleChoice"
         android:layout_weight="1" />
-    <LinearLayout 
-        android:id="@+id/colorLinearLayout" 
-        android:layout_width="fill_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:baselineAligned="false">
-        <LinearLayout 
-            android:layout_width="0dp" 
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:gravity="center">
-            <CheckBox 
-                android:id="@+id/red_pip" 
-                android:button="@drawable/checkbox_redpips"
-                android:layout_height="40dp"
-                android:layout_width="40dp"/>
-        </LinearLayout>
-        <LinearLayout 
-            android:layout_width="0dp" 
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:gravity="center">
-            <CheckBox 
-                android:id="@+id/blue_pip" 
-                android:button="@drawable/checkbox_bluepips"
-                android:layout_height="40dp"
-                android:layout_width="40dp"/>
-        </LinearLayout>
-        <LinearLayout 
-            android:layout_width="0dp" 
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:gravity="center">
-            <CheckBox 
-                android:id="@+id/yellow_pip" 
-                android:button="@drawable/checkbox_yellowpips"
-                android:layout_height="40dp"
-                android:layout_width="40dp"/>
-        </LinearLayout>
-        <LinearLayout 
-            android:layout_width="0dp" 
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:gravity="center">
-            <CheckBox 
-                android:id="@+id/green_pip" 
-                android:button="@drawable/checkbox_greenpips"
-                android:layout_height="40dp"
-                android:layout_width="40dp"/>
-        </LinearLayout>
-    </LinearLayout>
     <RelativeLayout
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"

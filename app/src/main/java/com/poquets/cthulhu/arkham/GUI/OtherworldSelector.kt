@@ -36,9 +36,6 @@ class OtherworldSelector : AppCompatActivity() {
         
         listView = findViewById(R.id.locationListView)
         
-        // Setup color checkboxes
-        setupColorCheckboxes()
-        
         // Get otherworld locations
         activityScope.launch {
             val locations = AHFlyweightFactory.INSTANCE.getCurrentOtherWorldLocations()
@@ -165,45 +162,6 @@ class OtherworldSelector : AppCompatActivity() {
         Toast.makeText(this, "OtherWorldDeckActivity not yet implemented", Toast.LENGTH_SHORT).show()
     }
     
-    /**
-     * Setup color checkboxes at bottom (matching original app)
-     */
-    private fun setupColorCheckboxes() {
-        val colors = AHFlyweightFactory.INSTANCE.getCurrentOtherWorldColors()
-        val colorLayout = findViewById<LinearLayout>(R.id.colorLinearLayout)
-        
-        if (colorLayout == null) {
-            Log.w("OtherworldSelector", "colorLinearLayout not found")
-            return
-        }
-        
-        for (color in colors) {
-            val colorId = color.getID().toInt()
-            val checkbox = when (colorId) {
-                1 -> findViewById<CheckBox>(R.id.yellow_pip)
-                2 -> findViewById<CheckBox>(R.id.red_pip)
-                3 -> findViewById<CheckBox>(R.id.blue_pip)
-                4 -> findViewById<CheckBox>(R.id.green_pip)
-                else -> null
-            }
-            
-            if (checkbox != null) {
-                // Set initial checked state
-                colorLayout.post {
-                    checkbox.isChecked = GameState.getInstance(applicationContext).isSelectedOtherWorldColor(color)
-                }
-                
-                // Set click listener
-                checkbox.setOnClickListener {
-                    if (checkbox.isChecked) {
-                        GameState.getInstance(applicationContext).addSelectedOtherWorldColor(color)
-                    } else {
-                        GameState.getInstance(applicationContext).removeSelectedOtherWorldColor(color)
-                    }
-                }
-            }
-        }
-    }
     
     /**
      * Overlay color pips on button (matching original app)

@@ -1,33 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="fill_parent"
     android:layout_height="fill_parent"
     android:background="@drawable/cthulhu_background">
-    <ListView 
-        android:id="@+id/locationListView" 
-        android:layout_width="match_parent" 
-        android:layout_height="0dip"
-        android:choiceMode="multipleChoice"
-        android:layout_weight="1" />
-    <RelativeLayout
+    <LinearLayout
+        android:orientation="vertical"
         android:layout_width="fill_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal">
-        <Button 
-            android:id="@+id/open_neighborhoods" 
-            android:layout_height="100dp"
-            android:layout_width="100dp"
-            android:background="@drawable/ae_btn"
-            android:layout_alignParentLeft="true"
-            android:onClick="openNeighborhood" />
-        <Button 
-            android:id="@+id/open_encounterhx" 
-            android:layout_height="100dp"
-            android:layout_width="100dp"
-            android:background="@drawable/history_back"
-            android:layout_alignParentRight="true"
-            android:onClick="openEncHx" />
-    </RelativeLayout>
-</LinearLayout>
+        android:layout_height="fill_parent">
+        <ListView 
+            android:id="@+id/locationListView" 
+            android:layout_width="match_parent" 
+            android:layout_height="0dip"
+            android:choiceMode="multipleChoice"
+            android:layout_weight="1" />
+        <RelativeLayout
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <Button 
+                android:id="@+id/open_neighborhoods" 
+                android:layout_height="100dp"
+                android:layout_width="100dp"
+                android:background="@drawable/ae_btn"
+                android:layout_alignParentLeft="true"
+                android:onClick="openNeighborhood" />
+            <Button 
+                android:id="@+id/open_encounterhx" 
+                android:layout_height="100dp"
+                android:layout_width="100dp"
+                android:background="@drawable/history_back"
+                android:layout_alignParentRight="true"
+                android:onClick="openEncHx" />
+        </RelativeLayout>
+    </LinearLayout>
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@android:color/transparent"
+        android:elevation="8dp"
+        android:clickable="true"
+        android:focusable="true"
+        android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
+        app:popupTheme="@style/ThemeOverlay.AppCompat.Light" />
+</FrameLayout>
 

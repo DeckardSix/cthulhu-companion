@@ -64,13 +64,16 @@
 
 </LinearLayout>
 
-<!-- Gear icon in bottom right -->
+<!-- Gear icon in top right -->
 <ImageButton
     android:id="@+id/settingsButton"
     android:layout_width="48dp"
     android:layout_height="48dp"
-    android:layout_gravity="bottom|end"
-    android:layout_margin="16dp"
+    android:layout_gravity="top|end"
+    android:layout_marginTop="26dp"
+    android:layout_marginEnd="16dp"
+    android:layout_marginBottom="16dp"
+    android:layout_marginStart="16dp"
     android:src="@android:drawable/ic_menu_preferences"
     android:background="@android:color/transparent"
     android:contentDescription="Database Settings"

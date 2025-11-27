@@ -4,6 +4,7 @@ import android.content.Intent
 import android.graphics.Typeface
 import android.os.Bundle
 import android.util.Log
+import android.view.MenuItem
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
@@ -26,6 +27,11 @@ class NeighborhoodSelector : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.main)
+        
+        // Set up toolbar as action bar
+        val toolbar = findViewById<androidx.appcompat.widget.Toolbar>(R.id.toolbar)
+        setSupportActionBar(toolbar)
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
         
         // Initialize factories
         AHFlyweightFactory.Init(applicationContext)
@@ -117,6 +123,17 @@ class NeighborhoodSelector : AppCompatActivity() {
             }
             
             listView.adapter = adapter
+        }
+    }
+    
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            android.R.id.home -> {
+                // Handle back button press
+                finish()
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
         }
     }
     

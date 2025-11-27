@@ -32,7 +32,9 @@ class LocationDeckActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.locationdeck)
         
-        supportActionBar?.show()
+        // Set up toolbar as action bar
+        val toolbar = findViewById<androidx.appcompat.widget.Toolbar>(R.id.toolbar)
+        setSupportActionBar(toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         
         // Initialize factories
@@ -101,6 +103,11 @@ class LocationDeckActivity : AppCompatActivity() {
     
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+            android.R.id.home -> {
+                // Handle back button press
+                finish()
+                true
+            }
             R.id.shuffle -> {
                 shuffleDeck()
                 true

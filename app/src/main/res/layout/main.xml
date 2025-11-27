@@ -2,7 +2,8 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:orientation="vertical"
     android:layout_width="fill_parent"
-    android:layout_height="fill_parent">
+    android:layout_height="fill_parent"
+    android:background="@drawable/cthulhu_background">
     <ListView 
         android:id="@+id/ListView01" 
         android:layout_width="match_parent" 
@@ -17,18 +18,16 @@
             android:id="@+id/open_otherworld" 
             android:layout_height="100dp"
             android:layout_width="100dp"
-            android:background="@drawable/btn_round"
+            android:background="@drawable/ow_btn"
             android:layout_alignParentLeft="true"
-            android:onClick="openOW"
-            android:text="Other World" />
+            android:onClick="openOW" />
         <Button 
             android:id="@+id/open_encounterhx" 
             android:layout_height="100dp"
             android:layout_width="100dp"
-            android:background="@drawable/btn_round"
+            android:background="@drawable/history_back"
             android:layout_alignParentRight="true"
-            android:onClick="openEncHx"
-            android:text="History" />
+            android:onClick="openEncHx" />
     </RelativeLayout>
 </LinearLayout>
 

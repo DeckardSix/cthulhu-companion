@@ -501,14 +501,28 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
     /**
      * Get or create an expansion and return its ID
      * Used during migration to map original expansion IDs to unified expansion IDs
+     * IMPORTANT: For Arkham, we preserve the original expansion IDs (1-10) by using the original ID as the exp_id
      */
     fun getOrCreateExpansion(gameType: GameType, originalExpId: String, expName: String? = null, iconPath: String? = null): Long {
         rwLock.writeLock().lock()
         try {
             val db = writableDatabase
             
-            // First try to find by original ID stored in exp_name or by name
-            val cursor = if (expName != null) {
+            // For Arkham, try to use the original expansion ID (1-10) if it's a valid number
+            val originalIdLong = originalExpId.toLongOrNull()
+            val useOriginalId = gameType == GameType.ARKHAM && originalIdLong != null && originalIdLong in 1..10
+            
+            // First try to find by original ID (if using original ID) or by name
+            val cursor = if (useOriginalId) {
+                // Try to find by the original expansion ID
+                db.query(
+                    TABLE_EXPANSIONS,
+                    arrayOf(COLUMN_EXP_ID),
+                    "$COLUMN_EXP_ID = ? AND $COLUMN_GAME_TYPE = ?",
+                    arrayOf(originalIdLong.toString(), gameType.value),
+                    null, null, null, "1"
+                )
+            } else if (expName != null) {
                 db.query(
                     TABLE_EXPANSIONS,
                     arrayOf(COLUMN_EXP_ID),
@@ -528,23 +542,36 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
             
             cursor.use {
                 if (it.moveToFirst()) {
-                    return it.getLong(0)
+                    val foundId = it.getLong(0)
+                    Log.d(TAG, "Found existing expansion: $expName (ID=$foundId)")
+                    return foundId
                 }
             }
             
             // Not found, create it
             val values = android.content.ContentValues().apply {
+                if (useOriginalId) {
+                    // For Arkham, use the original expansion ID (1-10) to preserve compatibility
+                    put(COLUMN_EXP_ID, originalIdLong)
+                }
                 put(COLUMN_GAME_TYPE, gameType.value)
                 put(COLUMN_EXP_NAME, expName ?: originalExpId)
                 iconPath?.let { put(COLUMN_EXP_ICON_PATH, it) }
             }
             
-            val newId = db.insert(TABLE_EXPANSIONS, null, values)
+            // Use insertWithOnConflict to handle case where ID already exists
+            val newId = if (useOriginalId) {
+                db.insertWithOnConflict(TABLE_EXPANSIONS, null, values, SQLiteDatabase.CONFLICT_REPLACE)
+            } else {
+                db.insert(TABLE_EXPANSIONS, null, values)
+            }
+            
             if (newId == -1L) {
                 Log.e(TAG, "Failed to create expansion: $expName")
                 return -1L
             }
             
+            Log.d(TAG, "Created expansion: $expName (ID=$newId, originalId=$originalExpId)")
             return newId
         } catch (e: Exception) {
             Log.e(TAG, "Error getting or creating expansion: ${e.message}", e)
@@ -1101,20 +1128,45 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
                 return emptyList()
             }
             
-            // Build query with IN clause for all expansion IDs
-            val placeholders = expIds.joinToString(",") { "?" }
+            // Map hardcoded expansion IDs (1-10) to expansion names
+            val expansionNameMap = mapOf(
+                1L to "BASE",
+                2L to "Curse of the Dark Pharoah",
+                3L to "Dunwich Horror",
+                4L to "The King in Yellow",
+                5L to "Kingsport Horror",
+                6L to "Black Goat of the Woods",
+                7L to "Innsmouth Horror",
+                8L to "Lurker at the Threshold",
+                9L to "Curse of the Dark Pharoah Revised",
+                10L to "Miskatonic Horror"
+            )
+            
+            // Get expansion names for the requested IDs
+            val expansionNames = expIds.mapNotNull { expansionNameMap[it] }
+            if (expansionNames.isEmpty()) {
+                Log.w(TAG, "No valid expansion names found for IDs: $expIds")
+                return emptyList()
+            }
+            
+            // Query neighborhoods by joining with expansions table and matching by name
+            val placeholders = expansionNames.joinToString(",") { "?" }
             val query = """
                 SELECT DISTINCT 
-                    $COLUMN_NEI_ID, 
-                    $COLUMN_NEI_NAME, 
-                    $COLUMN_NEI_CARD_PATH, 
-                    $COLUMN_NEI_BUTTON_PATH
-                FROM $TABLE_NEIGHBORHOODS
-                WHERE $COLUMN_EXP_ID IN ($placeholders) OR $COLUMN_EXP_ID = 1
-                ORDER BY $COLUMN_NEI_NAME ASC
+                    n.$COLUMN_NEI_ID, 
+                    n.$COLUMN_NEI_NAME, 
+                    n.$COLUMN_NEI_CARD_PATH, 
+                    n.$COLUMN_NEI_BUTTON_PATH
+                FROM $TABLE_NEIGHBORHOODS n
+                JOIN $TABLE_EXPANSIONS e ON n.$COLUMN_EXP_ID = e.$COLUMN_EXP_ID
+                WHERE e.$COLUMN_GAME_TYPE = ? 
+                AND (e.$COLUMN_EXP_NAME IN ($placeholders) OR e.$COLUMN_EXP_NAME = 'BASE' OR e.$COLUMN_EXP_NAME = 'Base')
+                ORDER BY n.$COLUMN_NEI_NAME ASC
             """.trimIndent()
             
-            val args = expIds.map { it.toString() }.toTypedArray()
+            val args = arrayOf(GameType.ARKHAM.value) + expansionNames.toTypedArray()
+            Log.d(TAG, "Querying neighborhoods with SQL: $query")
+            Log.d(TAG, "Query args: ${args.joinToString()}")
             val cursor = db.rawQuery(query, args)
             
             val neighborhoods = mutableListOf<NeighborhoodData>()
@@ -1125,21 +1177,28 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
                 val cardPathIndex = it.getColumnIndex(COLUMN_NEI_CARD_PATH)
                 val buttonPathIndex = it.getColumnIndex(COLUMN_NEI_BUTTON_PATH)
                 
+                Log.d(TAG, "Found ${it.count} neighborhood rows in cursor")
+                
                 while (it.moveToNext()) {
                     val neiId = it.getLong(idIndex)
+                    val neiName = it.getString(nameIndex)
                     // Only add if we haven't seen this neighborhood ID before
                     if (seenIds.add(neiId)) {
                         neighborhoods.add(
                             NeighborhoodData(
                                 id = neiId,
-                                name = it.getString(nameIndex),
+                                name = neiName,
                                 cardPath = it.getStringOrNull(cardPathIndex),
                                 buttonPath = it.getStringOrNull(buttonPathIndex)
                             )
                         )
+                        Log.d(TAG, "Added neighborhood: $neiName (ID=$neiId)")
+                    } else {
+                        Log.d(TAG, "Skipped duplicate neighborhood: $neiName (ID=$neiId)")
                     }
                 }
             }
+            Log.d(TAG, "Returning ${neighborhoods.size} neighborhoods: ${neighborhoods.map { "${it.name}(ID=${it.id})" }}")
             return neighborhoods
         } catch (e: Exception) {
             Log.e(TAG, "Error getting neighborhoods for expansions: ${e.message}", e)
@@ -1399,53 +1458,101 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
         rwLock.readLock().lock()
         try {
             val db = readableDatabase
-            var whereClause = "$COLUMN_NEI_ID IS NULL"
+            // Map hardcoded expansion IDs (1-10) to expansion names and query by name
+            val expansionNameMap = mapOf(
+                1L to "BASE",
+                2L to "Curse of the Dark Pharoah",
+                3L to "Dunwich Horror",
+                4L to "The King in Yellow",
+                5L to "Kingsport Horror",
+                6L to "Black Goat of the Woods",
+                7L to "Innsmouth Horror",
+                8L to "Lurker at the Threshold",
+                9L to "Curse of the Dark Pharoah Revised",
+                10L to "Miskatonic Horror"
+            )
+            
+            // Build WHERE clause and args
+            val whereConditions = mutableListOf<String>()
             val whereArgs = mutableListOf<String>()
             
-            // Filter by expansion IDs (base game ID 1 is always included)
+            // Always filter for locations without neighborhood
+            whereConditions.add("l.$COLUMN_NEI_ID IS NULL")
+            
+            // Filter by expansion names
             if (expIds != null && expIds.isNotEmpty()) {
-                // Remove 1 from the list if present (we'll handle it separately)
-                val nonBaseExpIds = expIds.filter { it != 1L }
-                if (nonBaseExpIds.isNotEmpty()) {
-                    val placeholders = nonBaseExpIds.joinToString(",") { "?" }
-                    // Show locations from selected expansions OR base game (ID 1)
-                    whereClause += " AND ($COLUMN_EXP_ID IN ($placeholders) OR $COLUMN_EXP_ID = 1)"
-                    whereArgs.addAll(nonBaseExpIds.map { it.toString() })
+                val expansionNames = expIds.mapNotNull { expansionNameMap[it] }
+                val nonBaseNames = expansionNames.filter { it != "BASE" && it != "Base" }
+                
+                if (nonBaseNames.isNotEmpty()) {
+                    val placeholders = nonBaseNames.joinToString(",") { "?" }
+                    whereConditions.add("""
+                        EXISTS (
+                            SELECT 1 FROM $TABLE_EXPANSIONS e 
+                            WHERE e.$COLUMN_EXP_ID = l.$COLUMN_EXP_ID 
+                            AND e.$COLUMN_GAME_TYPE = ? 
+                            AND (e.$COLUMN_EXP_NAME IN ($placeholders) OR e.$COLUMN_EXP_NAME = 'BASE' OR e.$COLUMN_EXP_NAME = 'Base')
+                        )
+                    """.trimIndent())
+                    whereArgs.add(GameType.ARKHAM.value)
+                    whereArgs.addAll(nonBaseNames)
                 } else {
-                    // Only base game selected
-                    whereClause += " AND $COLUMN_EXP_ID = 1"
+                    whereConditions.add("""
+                        EXISTS (
+                            SELECT 1 FROM $TABLE_EXPANSIONS e 
+                            WHERE e.$COLUMN_EXP_ID = l.$COLUMN_EXP_ID 
+                            AND e.$COLUMN_GAME_TYPE = ? 
+                            AND (e.$COLUMN_EXP_NAME = 'BASE' OR e.$COLUMN_EXP_NAME = 'Base')
+                        )
+                    """.trimIndent())
+                    whereArgs.add(GameType.ARKHAM.value)
                 }
             } else {
-                // If no expansions specified, only show base game
-                whereClause += " AND $COLUMN_EXP_ID = 1"
+                whereConditions.add("""
+                    EXISTS (
+                        SELECT 1 FROM $TABLE_EXPANSIONS e 
+                        WHERE e.$COLUMN_EXP_ID = l.$COLUMN_EXP_ID 
+                        AND e.$COLUMN_GAME_TYPE = ? 
+                        AND (e.$COLUMN_EXP_NAME = 'BASE' OR e.$COLUMN_EXP_NAME = 'Base')
+                    )
+                """.trimIndent())
+                whereArgs.add(GameType.ARKHAM.value)
             }
             
             // Exclude specific location IDs (499 and 500 are special placeholders)
             if (excludeIds.isNotEmpty()) {
                 val excludePlaceholders = excludeIds.joinToString(",") { "?" }
-                whereClause += " AND $COLUMN_LOC_ID NOT IN ($excludePlaceholders)"
+                whereConditions.add("l.$COLUMN_LOC_ID NOT IN ($excludePlaceholders)")
                 whereArgs.addAll(excludeIds.map { it.toString() })
                 Log.d(TAG, "Excluding location IDs: ${excludeIds.joinToString(", ")}")
             }
             
+            val whereClause = whereConditions.joinToString(" AND ")
+            
             // Use DISTINCT to ensure unique locations (in case same location appears in multiple expansions)
+            // Join with expansions table to query by name instead of ID
             val query = """
                 SELECT DISTINCT 
-                    $COLUMN_LOC_ID, 
-                    $COLUMN_LOC_NAME, 
-                    $COLUMN_LOC_BUTTON_PATH, 
-                    $COLUMN_NEI_ID, 
-                    $COLUMN_EXP_ID, 
-                    $COLUMN_LOC_SORT
-                FROM $TABLE_LOCATIONS
+                    l.$COLUMN_LOC_ID, 
+                    l.$COLUMN_LOC_NAME, 
+                    l.$COLUMN_LOC_BUTTON_PATH, 
+                    l.$COLUMN_NEI_ID, 
+                    l.$COLUMN_EXP_ID, 
+                    l.$COLUMN_LOC_SORT
+                FROM $TABLE_LOCATIONS l
                 WHERE $whereClause
-                ORDER BY $COLUMN_LOC_SORT ASC, $COLUMN_LOC_NAME ASC
+                ORDER BY l.$COLUMN_LOC_SORT ASC, l.$COLUMN_LOC_NAME ASC
             """.trimIndent()
+            
+            Log.d(TAG, "Querying otherworld locations with SQL: $query")
+            Log.d(TAG, "Query args: ${whereArgs.joinToString()}")
             
             val cursor = db.rawQuery(
                 query,
                 if (whereArgs.isNotEmpty()) whereArgs.toTypedArray() else null
             )
+            
+            Log.d(TAG, "Found ${cursor.count} otherworld location rows in cursor")
             
             val locations = mutableListOf<LocationData>()
             val seenIds = mutableSetOf<Long>() // Track seen location IDs to prevent duplicates
@@ -1459,18 +1566,23 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
                 
                 while (it.moveToNext()) {
                     val locId = it.getLong(idIndex)
+                    val locName = it.getString(nameIndex)
+                    val expId = it.getLongOrNull(expIdIndex)
                     // Only add if we haven't seen this location ID before
                     if (seenIds.add(locId)) {
                         locations.add(
                             LocationData(
                                 id = locId,
-                                name = it.getString(nameIndex),
+                                name = locName,
                                 buttonPath = it.getStringOrNull(buttonPathIndex),
                                 neiId = it.getLongOrNull(neiIdIndex),
-                                expId = it.getLongOrNull(expIdIndex),
+                                expId = expId,
                                 sort = if (sortIndex >= 0 && !it.isNull(sortIndex)) it.getInt(sortIndex) else 0
                             )
                         )
+                        Log.d(TAG, "Added otherworld location: $locName (ID=$locId, expId=$expId)")
+                    } else {
+                        Log.d(TAG, "Skipped duplicate otherworld location: $locName (ID=$locId)")
                     }
                 }
             }

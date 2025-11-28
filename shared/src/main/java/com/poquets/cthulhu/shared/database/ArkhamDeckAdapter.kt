@@ -59,6 +59,16 @@ class ArkhamDeckAdapter(private val context: Context) {
         
         Log.d("ArkhamDeckAdapter", "Found ${allNeighborhoodCards.size} total cards for neighborhood $neighborhoodId (unencountered)")
         
+        // Debug: log all card expansions found
+        if (allNeighborhoodCards.isNotEmpty()) {
+            val cardExpansions = allNeighborhoodCards.groupBy { it.cardId }.mapValues { (_, cards) ->
+                cards.map { it.expansion }.toSet()
+            }
+            Log.d("ArkhamDeckAdapter", "Card expansions for neighborhood $neighborhoodId: $cardExpansions")
+        } else {
+            Log.w("ArkhamDeckAdapter", "No cards found in database for neighborhood $neighborhoodId - this neighborhood may not have any cards, or may belong to a non-selected expansion")
+        }
+        
         // Filter by expansion: match original SQL logic from AHFlyweightFactory.getCurrentNeighborhoodsCards()
         // Include cards that belong to at least one selected expansion
         // BUT exclude cards that belong to any non-selected expansion

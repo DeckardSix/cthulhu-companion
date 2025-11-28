@@ -180,17 +180,25 @@ class GameStateAdapter private constructor(context: Context) {
     fun getDeckByNeighborhood(neiID: Long): List<NeighborhoodCardAdapter> {
         if (neighborhoodCardsList.containsKey(neiID)) {
             val cached = neighborhoodCardsList[neiID]
-            Log.d("GameStateAdapter", "Returning cached deck with ${cached?.size ?: 0} cards")
-            return cached ?: emptyList()
-        } else {
-            val cards = runBlocking {
-                ahFactory.getCurrentNeighborhoodsCards(neiID)
+            Log.d("GameStateAdapter", "Returning cached deck with ${cached?.size ?: 0} cards for neighborhood $neiID")
+            // If cache has 0 cards, it might be stale - clear it and re-fetch
+            if (cached.isNullOrEmpty()) {
+                Log.d("GameStateAdapter", "Cached deck is empty for neighborhood $neiID, clearing cache and re-fetching")
+                neighborhoodCardsList.remove(neiID)
+            } else {
+                return cached
             }
-            val mutableCards = cards.toMutableList()
-            randomize(mutableCards)
-            neighborhoodCardsList[neiID] = mutableCards
-            return mutableCards
         }
+        
+        // Fetch fresh cards (either cache was empty or didn't exist)
+        val cards = runBlocking {
+            ahFactory.getCurrentNeighborhoodsCards(neiID)
+        }
+        Log.d("GameStateAdapter", "Fetched ${cards.size} cards for neighborhood $neiID")
+        val mutableCards = cards.toMutableList()
+        randomize(mutableCards)
+        neighborhoodCardsList[neiID] = mutableCards
+        return mutableCards
     }
     
     /**

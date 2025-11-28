@@ -184,6 +184,8 @@ class AHFlyweightFactoryAdapter private constructor(context: Context) {
                 val db = UnifiedCardDatabaseHelper.getInstance(appContext)
                 val enabledExpansions = gameState.getSelectedExpansions(GameType.ARKHAM)
                 
+                android.util.Log.d("AHFlyweightFactoryAdapter", "Getting neighborhoods for selected expansions: $enabledExpansions")
+                
                 // Get neighborhoods for enabled expansions using a single query
                 // Map expansion names to IDs
                 val expIds = mutableListOf<Long>()
@@ -191,16 +193,25 @@ class AHFlyweightFactoryAdapter private constructor(context: Context) {
                     val expId = getExpansionIdByName(expansion)
                     if (expId > 0) {
                         expIds.add(expId)
+                        android.util.Log.d("AHFlyweightFactoryAdapter", "Mapped expansion '$expansion' to ID $expId")
+                    } else {
+                        android.util.Log.w("AHFlyweightFactoryAdapter", "Could not map expansion '$expansion' to an ID")
                     }
                 }
                 
                 // Always include base game (ID 1)
                 if (!expIds.contains(1L)) {
                     expIds.add(1L)
+                    android.util.Log.d("AHFlyweightFactoryAdapter", "Added BASE game (ID 1) to expansion list")
                 }
+                
+                android.util.Log.d("AHFlyweightFactoryAdapter", "Querying neighborhoods for expansion IDs: $expIds")
                 
                 // Use single query method to get all neighborhoods at once (avoids duplicates)
                 val neighborhoods = db.getNeighborhoodsForExpansions(expIds)
+                
+                android.util.Log.d("AHFlyweightFactoryAdapter", "Found ${neighborhoods.size} neighborhoods: ${neighborhoods.map { "${it.name}(ID=${it.id})" }}")
+                
                 neighborhoods.map { nei ->
                     NeighborhoodAdapter(
                         nei.id,
@@ -242,8 +253,46 @@ class AHFlyweightFactoryAdapter private constructor(context: Context) {
      * Helper to get expansion ID by name
      */
     private fun getExpansionIdByName(expansionName: String): Long {
+        // First try exact match
         val expansion = getExpansions().find { it.getName() == expansionName }
-        return expansion?.getID() ?: 1L // Default to base game
+        if (expansion != null) {
+            android.util.Log.d("AHFlyweightFactoryAdapter", "Found exact match for expansion '$expansionName' -> ID ${expansion.getID()}")
+            return expansion.getID()
+        }
+        
+        // Fallback: try case-insensitive match
+        val expansionCaseInsensitive = getExpansions().find { it.getName().equals(expansionName, ignoreCase = true) }
+        if (expansionCaseInsensitive != null) {
+            android.util.Log.d("AHFlyweightFactoryAdapter", "Found case-insensitive match for expansion '$expansionName' -> ID ${expansionCaseInsensitive.getID()}")
+            return expansionCaseInsensitive.getID()
+        }
+        
+        // Fallback: use hardcoded map (more reliable)
+        val hardcodedMap = mapOf(
+            "BASE" to 1L,
+            "Curse of the Dark Pharoah" to 2L,
+            "Dunwich Horror" to 3L,
+            "The King in Yellow" to 4L,
+            "Kingsport Horror" to 5L,
+            "Black Goat of the Woods" to 6L,
+            "Innsmouth Horror" to 7L,
+            "Lurker at the Threshold" to 8L,
+            "Curse of the Dark Pharoah Revised" to 9L,
+            "Miskatonic Horror" to 10L
+        )
+        
+        val hardcodedId = hardcodedMap[expansionName] ?: hardcodedMap.entries.find { 
+            it.key.equals(expansionName, ignoreCase = true) 
+        }?.value
+        
+        if (hardcodedId != null) {
+            android.util.Log.d("AHFlyweightFactoryAdapter", "Found hardcoded match for expansion '$expansionName' -> ID $hardcodedId")
+            return hardcodedId
+        }
+        
+        android.util.Log.w("AHFlyweightFactoryAdapter", "Could not find expansion ID for '$expansionName', defaulting to base game (ID=1)")
+        android.util.Log.w("AHFlyweightFactoryAdapter", "Available expansions: ${getExpansions().map { it.getName() }}")
+        return 1L // Default to base game
     }
     
     /**
@@ -571,17 +620,47 @@ class AHFlyweightFactoryAdapter private constructor(context: Context) {
                 val cards = db.getCardsByCardId(GameType.ARKHAM, cardID.toString())
                 
                 if (cards.isNotEmpty()) {
-                    val expansions = getExpansions()
+                    // Map expansion names to hardcoded IDs (1-10) directly, without relying on getExpansions()
+                    // This ensures we use the correct IDs even if database expansion IDs don't match
+                    val expansionNameToIdMap = mapOf(
+                        "BASE" to 1L,
+                        "Base" to 1L,
+                        "Base Game" to 1L,
+                        "Curse of the Dark Pharoah" to 2L,
+                        "Curse of the Dark Pharaoh" to 2L,
+                        "Dunwich Horror" to 3L,
+                        "The King in Yellow" to 4L,
+                        "King in Yellow" to 4L,
+                        "Kingsport Horror" to 5L,
+                        "Black Goat of the Woods" to 6L,
+                        "The Black Goat of the Woods" to 6L,
+                        "Innsmouth Horror" to 7L,
+                        "Lurker at the Threshold" to 8L,
+                        "The Lurker at the Threshold" to 8L,
+                        "Curse of the Dark Pharoah Revised" to 9L,
+                        "Curse of the Dark Pharaoh Revised" to 9L,
+                        "Miskatonic Horror" to 10L
+                    )
+                    
                     val expIds = cards.mapNotNull { card ->
-                        val expansion = expansions.find { it.getName() == card.expansion }
-                        expansion?.getID()
+                        // Try exact match first
+                        expansionNameToIdMap[card.expansion] 
+                            // Then try case-insensitive match
+                            ?: expansionNameToIdMap.entries.find { 
+                                it.key.equals(card.expansion, ignoreCase = true) 
+                            }?.value
+                            // Then try partial match (e.g., "Dunwich" matches "Dunwich Horror")
+                            ?: expansionNameToIdMap.entries.find { 
+                                card.expansion.contains(it.key, ignoreCase = true) || 
+                                it.key.contains(card.expansion, ignoreCase = true)
+                            }?.value
                     }.distinct()
                     
                     if (expIds.isNotEmpty()) {
-                        android.util.Log.d("AHFlyweightFactoryAdapter", "Card $cardID belongs to expansions: $expIds")
+                        android.util.Log.d("AHFlyweightFactoryAdapter", "Card $cardID belongs to expansions: $expIds (from names: ${cards.map { it.expansion }.distinct()})")
                         expIds
                     } else {
-                        android.util.Log.w("AHFlyweightFactoryAdapter", "Card $cardID has no valid expansion IDs, defaulting to BASE")
+                        android.util.Log.w("AHFlyweightFactoryAdapter", "Card $cardID has no valid expansion IDs (expansion names: ${cards.map { it.expansion }.distinct()}), defaulting to BASE")
                         listOf(1L) // Default to base game
                     }
                 } else {

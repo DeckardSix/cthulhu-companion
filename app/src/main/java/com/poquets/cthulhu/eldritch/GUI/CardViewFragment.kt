@@ -93,9 +93,9 @@ class CardViewFragment : Fragment(), View.OnClickListener {
             ViewGroup.LayoutParams.MATCH_PARENT
         )
         
-        val backgroundColor = CardColorUtils.getDeckBackgroundColor(deckName)
+        // Use cthulhu_background like Arkham screens
+        frameLayout.setBackgroundResource(R.drawable.cthulhu_background)
         val textColor = CardColorUtils.getDeckTextColor(deckName)
-        frameLayout.setBackgroundColor(backgroundColor)
         
         val mainLayout = LinearLayout(requireContext())
         mainLayout.orientation = LinearLayout.VERTICAL

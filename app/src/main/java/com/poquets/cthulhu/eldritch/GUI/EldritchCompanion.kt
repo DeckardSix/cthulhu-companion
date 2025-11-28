@@ -93,60 +93,152 @@ class EldritchCompanion : AppCompatActivity() {
     }
     
     private fun updateButtonVisibility() {
-        // Ensure base location buttons are always visible
-        findViewById<View>(R.id.americasButton)?.visibility = View.VISIBLE
-        findViewById<View>(R.id.europeButton)?.visibility = View.VISIBLE
-        findViewById<View>(R.id.asiaButton)?.visibility = View.VISIBLE
-        findViewById<View>(R.id.generalButton)?.visibility = View.VISIBLE
-        findViewById<View>(R.id.gateButton)?.visibility = View.VISIBLE
-        findViewById<View>(R.id.researchButton)?.visibility = View.VISIBLE
-        findViewById<View>(R.id.discardButton)?.visibility = View.VISIBLE
+        val decks = DecksAdapter.CARDS
         
-        // Expedition button - always visible if base expansion is selected
-        if (Config.BASE) {
-            expeditionButton?.visibility = View.VISIBLE
+        // Helper function to hide button and its parent FrameLayout if deck is empty
+        fun hideIfEmpty(buttonId: Int, deckName: String) {
+            val button = findViewById<View>(buttonId)
+            if (button != null) {
+                val hasCards = decks?.getDeck(deckName)?.isNotEmpty() == true
+                val parent = button.parent as? View
+                if (hasCards) {
+                    button.visibility = View.VISIBLE
+                    parent?.visibility = View.VISIBLE
+                } else {
+                    button.visibility = View.GONE
+                    parent?.visibility = View.GONE
+                }
+            }
         }
         
-        // Antarctica buttons
-        if (!(Config.ANTARCTICA || (Config.ANCIENT_ONE != null && Config.ANCIENT_ONE == "Rise_of_the_Elder_Things"))) {
+        // Base location buttons - check if they have cards
+        hideIfEmpty(R.id.americasButton, "AMERICAS")
+        hideIfEmpty(R.id.europeButton, "EUROPE")
+        hideIfEmpty(R.id.asiaButton, "ASIA")
+        hideIfEmpty(R.id.generalButton, "GENERAL")
+        hideIfEmpty(R.id.gateButton, "GATE")
+        hideIfEmpty(R.id.researchButton, "RESEARCH")
+        hideIfEmpty(R.id.discardButton, "DISCARD")
+        
+        // Expedition button - check if it has cards and base expansion is selected
+        if (Config.BASE && decks != null) {
+            val hasCards = decks.getDeck("EXPEDITION").isNotEmpty()
+            expeditionButton?.visibility = if (hasCards) View.VISIBLE else View.GONE
+            // Hide parent FrameLayout if empty
+            expeditionButton?.parent?.let { parent ->
+                if (parent is View) {
+                    parent.visibility = if (hasCards) View.VISIBLE else View.GONE
+                }
+            }
+        } else {
+            expeditionButton?.visibility = View.GONE
+            expeditionButton?.parent?.let { parent ->
+                if (parent is View) {
+                    parent.visibility = View.GONE
+                }
+            }
+        }
+        
+        // Antarctica buttons - check expansion AND if they have cards
+        // Antarctica is part of Mountains of Madness expansion
+        if (Config.ANTARCTICA || Config.MOUNTAINS_OF_MADNESS || (Config.ANCIENT_ONE != null && Config.ANCIENT_ONE == "Rise_of_the_Elder_Things")) {
+            hideIfEmpty(R.id.antWestButton, "ANTARCTICA_WEST")
+            hideIfEmpty(R.id.antEastButton, "ANTARCTICA_EAST")
+            hideIfEmpty(R.id.antResearchButton, "ANTARCTICA_RESEARCH")
+        } else {
             findViewById<View>(R.id.antWestButton)?.visibility = View.GONE
+            findViewById<View>(R.id.antWestButton)?.parent?.let { if (it is View) it.visibility = View.GONE }
             findViewById<View>(R.id.antEastButton)?.visibility = View.GONE
+            findViewById<View>(R.id.antEastButton)?.parent?.let { if (it is View) it.visibility = View.GONE }
             findViewById<View>(R.id.antResearchButton)?.visibility = View.GONE
+            findViewById<View>(R.id.antResearchButton)?.parent?.let { if (it is View) it.visibility = View.GONE }
         }
         
-        // Egypt buttons
-        if (!(Config.EGYPT || (Config.ANCIENT_ONE != null && Config.ANCIENT_ONE == "Nephren-Ka"))) {
+        // Egypt buttons - check expansion AND if they have cards
+        if (Config.EGYPT || (Config.ANCIENT_ONE != null && Config.ANCIENT_ONE == "Nephren-Ka")) {
+            hideIfEmpty(R.id.africaButton, "AFRICA")
+            hideIfEmpty(R.id.egyptButton, "EGYPT")
+        } else {
             findViewById<View>(R.id.africaButton)?.visibility = View.GONE
+            findViewById<View>(R.id.africaButton)?.parent?.let { if (it is View) it.visibility = View.GONE }
             findViewById<View>(R.id.egyptButton)?.visibility = View.GONE
+            findViewById<View>(R.id.egyptButton)?.parent?.let { if (it is View) it.visibility = View.GONE }
         }
         
-        // Dreamlands buttons
-        if (!(Config.DREAMLANDS_BOARD || (Config.ANCIENT_ONE != null && Config.ANCIENT_ONE == "Hypnos"))) {
+        // Dreamlands buttons - check expansion AND if they have cards
+        if (Config.DREAMLANDS_BOARD || (Config.ANCIENT_ONE != null && Config.ANCIENT_ONE == "Hypnos")) {
+            hideIfEmpty(R.id.dreamlandsButton, "DREAMLANDS")
+            dreamQuestButton?.let { button ->
+                if (decks != null) {
+                    val hasCards = decks.getDeck("DREAM-QUEST").isNotEmpty()
+                    button.visibility = if (hasCards) View.VISIBLE else View.GONE
+                    button.parent?.let { parent ->
+                        if (parent is View) {
+                            parent.visibility = if (hasCards) View.VISIBLE else View.GONE
+                        }
+                    }
+                }
+            }
+        } else {
             findViewById<View>(R.id.dreamlandsButton)?.visibility = View.GONE
+            findViewById<View>(R.id.dreamlandsButton)?.parent?.let { if (it is View) it.visibility = View.GONE }
             dreamQuestButton?.visibility = View.GONE
+            dreamQuestButton?.parent?.let { if (it is View) it.visibility = View.GONE }
         }
         
-        // Mystic Ruins button
-        if (!(Config.COSMIC_ALIGNMENT || (Config.ANCIENT_ONE != null && 
-                (Config.ANCIENT_ONE == "Syzygy" || Config.ANCIENT_ONE == "Antediluvium")))) {
+        // Mystic Ruins button - check expansion AND if it has cards
+        if (Config.COSMIC_ALIGNMENT || (Config.ANCIENT_ONE != null && 
+                (Config.ANCIENT_ONE == "Syzygy" || Config.ANCIENT_ONE == "Antediluvium"))) {
+            mysticRuinsButton?.let { button ->
+                if (decks != null) {
+                    val hasCards = decks.getDeck("MYSTIC_RUINS").isNotEmpty()
+                    button.visibility = if (hasCards) View.VISIBLE else View.GONE
+                    button.parent?.let { parent ->
+                        if (parent is View) {
+                            parent.visibility = if (hasCards) View.VISIBLE else View.GONE
+                        }
+                    }
+                }
+            }
+        } else {
             mysticRuinsButton?.visibility = View.GONE
+            mysticRuinsButton?.parent?.let { if (it is View) it.visibility = View.GONE }
         }
         
-        // Special buttons - only visible if decks exist
-        if (DecksAdapter.CARDS == null || !DecksAdapter.CARDS!!.containsDeck("SPECIAL-1")) {
+        // Special buttons - only visible if decks exist and have cards
+        if (decks != null && decks.containsDeck("SPECIAL-1") && decks.getDeck("SPECIAL-1").isNotEmpty()) {
+            findViewById<View>(R.id.special1Button)?.visibility = View.VISIBLE
+            findViewById<View>(R.id.special1Button)?.parent?.let { if (it is View) it.visibility = View.VISIBLE }
+        } else {
             findViewById<View>(R.id.special1Button)?.visibility = View.GONE
-        }
-        if (DecksAdapter.CARDS == null || !DecksAdapter.CARDS!!.containsDeck("SPECIAL-2")) {
-            findViewById<View>(R.id.special2Button)?.visibility = View.GONE
-        }
-        if (DecksAdapter.CARDS == null || !DecksAdapter.CARDS!!.containsDeck("SPECIAL-3")) {
-            findViewById<View>(R.id.special3Button)?.visibility = View.GONE
+            findViewById<View>(R.id.special1Button)?.parent?.let { if (it is View) it.visibility = View.GONE }
         }
         
-        // Disaster buttons
-        if (!Config.CITIES_IN_RUIN) {
+        if (decks != null && decks.containsDeck("SPECIAL-2") && decks.getDeck("SPECIAL-2").isNotEmpty()) {
+            findViewById<View>(R.id.special2Button)?.visibility = View.VISIBLE
+            findViewById<View>(R.id.special2Button)?.parent?.let { if (it is View) it.visibility = View.VISIBLE }
+        } else {
+            findViewById<View>(R.id.special2Button)?.visibility = View.GONE
+            findViewById<View>(R.id.special2Button)?.parent?.let { if (it is View) it.visibility = View.GONE }
+        }
+        
+        if (decks != null && decks.containsDeck("SPECIAL-3") && decks.getDeck("SPECIAL-3").isNotEmpty()) {
+            findViewById<View>(R.id.special3Button)?.visibility = View.VISIBLE
+            findViewById<View>(R.id.special3Button)?.parent?.let { if (it is View) it.visibility = View.VISIBLE }
+        } else {
+            findViewById<View>(R.id.special3Button)?.visibility = View.GONE
+            findViewById<View>(R.id.special3Button)?.parent?.let { if (it is View) it.visibility = View.GONE }
+        }
+        
+        // Disaster buttons - check expansion AND if they have cards
+        if (Config.CITIES_IN_RUIN) {
+            hideIfEmpty(R.id.disasterButton, "DISASTER")
+            hideIfEmpty(R.id.devastationButton, "DEVASTATION")
+        } else {
             findViewById<View>(R.id.disasterButton)?.visibility = View.GONE
+            findViewById<View>(R.id.disasterButton)?.parent?.let { if (it is View) it.visibility = View.GONE }
             findViewById<View>(R.id.devastationButton)?.visibility = View.GONE
+            findViewById<View>(R.id.devastationButton)?.parent?.let { if (it is View) it.visibility = View.GONE }
         }
     }
     
@@ -232,6 +324,9 @@ class EldritchCompanion : AppCompatActivity() {
                 dreamQuestButton?.text = "Dream-Quest [${decks.getDreamQuestLocation() ?: "EMPTY"}]"
             }
         }
+        
+        // Update button visibility based on available decks
+        updateButtonVisibility()
         
         // Save game state
         saveGame()

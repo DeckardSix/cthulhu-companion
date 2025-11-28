@@ -2,9 +2,11 @@ package com.poquets.cthulhu.eldritch.GUI
 
 import android.content.Intent
 import android.content.SharedPreferences
+import android.graphics.BitmapFactory
 import android.graphics.Typeface
 import android.os.Bundle
 import android.util.Log
+import android.util.TypedValue
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AlertDialog
@@ -48,11 +50,14 @@ class Setup : AppCompatActivity() {
     private lateinit var startButton: Button
     
     private val activityScope = CoroutineScope(Dispatchers.Main)
-    private val gameState = GameStateManager.getInstance(this)
+    private lateinit var gameState: GameStateManager
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_setup)
+        
+        // Initialize GameStateManager after Activity is ready
+        gameState = GameStateManager.getInstance(this)
         
         // Initialize UI components
         initializeViews()
@@ -105,6 +110,21 @@ class Setup : AppCompatActivity() {
             setCheckboxWhite(checkbox)
         }
         
+        // Set expansion icons
+        setExpansionIcon(forsakenLoreBox, "icon_exp_fl")
+        setExpansionIcon(mountainsOfMadnessBox, "icon_exp_mom")
+        setExpansionIcon(antarcticaBox, "icon_exp_mom") // Antarctica uses MoM icon
+        setExpansionIcon(strangeRemnantsBox, "icon_exp_sr")
+        setExpansionIcon(cosmicAlignmentBox, "icon_exp_sr") // Cosmic Alignment uses SR icon
+        setExpansionIcon(underThePyramidsBox, "icon_exp_utp")
+        setExpansionIcon(egyptBox, "icon_exp_utp") // Egypt uses UtP icon
+        setExpansionIcon(litanyOfSecretsBox, "icon_exp_utp") // Litany uses UtP icon
+        setExpansionIcon(signsOfCarcosaBox, "icon_exp_soc")
+        setExpansionIcon(theDreamlandsBox, "icon_exp_td")
+        setExpansionIcon(dreamlandsBoardBox, "icon_exp_td") // Dreamlands Board uses TD icon
+        setExpansionIcon(citiesInRuinBox, "icon_exp_cir")
+        setExpansionIcon(masksOfNyarlathotepBox, "icon_exp_mon")
+        
         // Default: BASE is checked
         baseBox.isChecked = true
     }
@@ -115,6 +135,54 @@ class Setup : AppCompatActivity() {
             checkbox,
             android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE)
         )
+    }
+    
+    private fun setExpansionIcon(checkbox: CheckBox, iconName: String) {
+        try {
+            // Try to load from assets first (like Arkham expansion icons)
+            val assetPath = "expansion/$iconName.png"
+            try {
+                val inputStream = assets.open(assetPath)
+                val bitmap = android.graphics.BitmapFactory.decodeStream(inputStream)
+                inputStream.close()
+                
+                if (bitmap != null) {
+                    val iconSize = TypedValue.applyDimension(
+                        TypedValue.COMPLEX_UNIT_DIP, 24f, resources.displayMetrics
+                    ).toInt()
+                    val scaledBitmap = android.graphics.Bitmap.createScaledBitmap(bitmap, iconSize, iconSize, true)
+                    val drawable = android.graphics.drawable.BitmapDrawable(resources, scaledBitmap)
+                    drawable.setBounds(0, 0, iconSize, iconSize)
+                    checkbox.setCompoundDrawables(drawable, null, null, null)
+                    checkbox.compoundDrawablePadding = TypedValue.applyDimension(
+                        TypedValue.COMPLEX_UNIT_DIP, 8f, resources.displayMetrics
+                    ).toInt()
+                    Log.d("Setup", "Successfully loaded icon: $iconName from assets")
+                    return
+                }
+            } catch (e: java.io.IOException) {
+                Log.d("Setup", "Icon not found in assets: $assetPath, trying drawable resources")
+            }
+            
+            // Fallback to drawable resources
+            val iconId = resources.getIdentifier(iconName, "drawable", packageName)
+            if (iconId != 0) {
+                val icon = resources.getDrawable(iconId, theme)
+                val iconSize = TypedValue.applyDimension(
+                    TypedValue.COMPLEX_UNIT_DIP, 24f, resources.displayMetrics
+                ).toInt()
+                icon.setBounds(0, 0, iconSize, iconSize)
+                checkbox.setCompoundDrawables(icon, null, null, null)
+                checkbox.compoundDrawablePadding = TypedValue.applyDimension(
+                    TypedValue.COMPLEX_UNIT_DIP, 8f, resources.displayMetrics
+                ).toInt()
+                Log.d("Setup", "Successfully loaded icon: $iconName from drawable resources")
+            } else {
+                Log.d("Setup", "Icon not found: $iconName (tried assets/expansion/$iconName.png and drawable/$iconName)")
+            }
+        } catch (e: Exception) {
+            Log.w("Setup", "Error setting icon $iconName: ${e.message}", e)
+        }
     }
     
     private fun setupSpinner() {
@@ -248,10 +316,15 @@ class Setup : AppCompatActivity() {
         if (baseBox.isChecked) expansions.add("BASE")
         if (forsakenLoreBox.isChecked) expansions.add("FORSAKEN_LORE")
         if (mountainsOfMadnessBox.isChecked) expansions.add("MOUNTAINS_OF_MADNESS")
+        if (antarcticaBox.isChecked) expansions.add("ANTARCTICA")
         if (strangeRemnantsBox.isChecked) expansions.add("STRANGE_REMNANTS")
+        if (cosmicAlignmentBox.isChecked) expansions.add("COSMIC_ALIGNMENT")
         if (underThePyramidsBox.isChecked) expansions.add("UNDER_THE_PYRAMIDS")
+        if (egyptBox.isChecked) expansions.add("EGYPT")
+        if (litanyOfSecretsBox.isChecked) expansions.add("LITANY_OF_SECRETS")
         if (signsOfCarcosaBox.isChecked) expansions.add("SIGNS_OF_CARCOSA")
         if (theDreamlandsBox.isChecked) expansions.add("THE_DREAMLANDS")
+        if (dreamlandsBoardBox.isChecked) expansions.add("DREAMLANDS_BOARD")
         if (citiesInRuinBox.isChecked) expansions.add("CITIES_IN_RUIN")
         if (masksOfNyarlathotepBox.isChecked) expansions.add("MASKS_OF_NYARLATHOTEP")
         return expansions

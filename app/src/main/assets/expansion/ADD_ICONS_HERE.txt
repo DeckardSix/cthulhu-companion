@@ -1,0 +1,31 @@
+================================================================================
+                    ADD YOUR EXPANSION ICON FILES HERE
+================================================================================
+
+This folder needs 8 PNG files with these EXACT names:
+
+1. icon_exp_fl.png   - Forsaken Lore (Open book icon)
+2. icon_exp_mom.png  - Mountains of Madness (Mountain with tentacles)
+3. icon_exp_sr.png   - Strange Remnants (Stylized head)
+4. icon_exp_utp.png  - Under the Pyramids (Letter "A")
+5. icon_exp_soc.png  - Signs of Carcosa (Cat-like creature)
+6. icon_exp_td.png   - The Dreamlands (Stylized head)
+7. icon_exp_cir.png  - Cities in Ruin (Numeral "2")
+8. icon_exp_mon.png  - Masks of Nyarlathotep (Masquerade mask)
+
+IMPORTANT:
+- File names are CASE-SENSITIVE
+- Must be PNG format
+- Remove the dark green background (make it transparent)
+- Keep the white outline
+- Recommended size: 48x48 to 96x96 pixels
+
+After adding the files:
+1. Clean and rebuild the project in Android Studio
+2. Run the app
+3. Icons will appear next to each expansion checkbox
+
+Current status: 0 of 8 icon files present
+
+================================================================================
+

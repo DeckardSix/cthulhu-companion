@@ -84,13 +84,13 @@
             android:layout_below="@+id/forsakenLoreBox"
             android:layout_alignParentLeft="true"/>
         <CheckBox
-            android:enabled="false"
             android:textSize="16dp"
             android:id="@+id/antarcticaBox"
             android:layout_width="match_parent"
             android:layout_height="20dp"
             android:layout_marginLeft="30dp"
             android:layout_marginTop="2dp"
+            android:checked="false"
             android:text="Antarctica"
             android:textColor="@android:color/white"
             android:layout_below="@+id/mountainsOfMadnessBox"
@@ -108,7 +108,6 @@
             android:layout_below="@+id/antarcticaBox"
             android:layout_alignParentLeft="true"/>
         <CheckBox
-            android:enabled="false"
             android:textSize="16dp"
             android:gravity="top"
             android:id="@+id/cosmicAlignmentBox"
@@ -132,7 +131,6 @@
             android:layout_below="@+id/strangeRemnantsBox"
             android:layout_alignParentLeft="true"/>
         <CheckBox
-            android:enabled="false"
             android:textSize="16dp"
             android:id="@+id/egyptBox"
             android:layout_width="match_parent"
@@ -144,7 +142,6 @@
             android:layout_alignParentLeft="true"
             android:layout_centerVertical="true"/>
         <CheckBox
-            android:enabled="false"
             android:textSize="16dp"
             android:gravity="top"
             android:id="@+id/litanyOfSecretsBox"

@@ -23,6 +23,7 @@ import androidx.viewpager2.widget.ViewPager2
 import com.poquets.cthulhu.R
 import com.poquets.cthulhu.arkham.AHFlyweightFactory
 import com.poquets.cthulhu.arkham.EncounterAdapter
+import com.poquets.cthulhu.arkham.ExpansionAdapter
 import com.poquets.cthulhu.arkham.GameState
 import com.poquets.cthulhu.arkham.GameStateAdapter
 import com.poquets.cthulhu.arkham.NeighborhoodCardAdapter
@@ -534,15 +535,27 @@ class LocationHxActivity : AppCompatActivity() {
                 for (expId in expIds) {
                     // Use checkbox _on.png icons for all expansions (including BASE)
                     // These already exist in app/src/main/assets/checkbox
-                    val expansion = AHFlyweightFactory.INSTANCE.getExpansion(expId)
-                    val iconPath = expansion?.getCheckboxOnPath()
+                    // CRITICAL FIX: Ensure expansion ID is in valid range (1-10)
+                    // The database might have different IDs, but ExpansionAdapter only supports 1-10
+                    val validExpId = if (expId < 1 || expId > 10) {
+                        Log.w("LocationHxActivity", "Expansion ID $expId is out of range (1-10), using base game (ID=1)")
+                        1L
+                    } else {
+                        expId
+                    }
+                    
+                    // DIRECT FIX: Use ExpansionAdapter.getCheckboxOnPath() directly with the ID
+                    // This works for all IDs 1-10 without needing to look up the expansion
+                    // This is more reliable than looking up the expansion in the map
+                    val tempExpansion = ExpansionAdapter(validExpId, "Expansion $validExpId", null)
+                    val iconPath = tempExpansion.getCheckboxOnPath()
                     
                     if (iconPath == null) {
-                        Log.w("LocationHxActivity", "No checkbox icon path for expansion ID $expId")
+                        Log.w("LocationHxActivity", "No checkbox icon path for expansion ID $validExpId")
                         continue
                     }
                     
-                    Log.d("LocationHxActivity", "Expansion ID $expId: using checkbox icon path=$iconPath, name=${expansion?.getName()}")
+                    Log.d("LocationHxActivity", "Expansion ID $validExpId: using checkbox icon path=$iconPath")
                     
                     var expBmp: Bitmap? = null
                     try {

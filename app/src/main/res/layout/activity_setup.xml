@@ -386,7 +386,7 @@
             android:layout_below="@+id/ancientHeader"
             android:layout_centerHorizontal="true"
             android:spinnerMode="dropdown"
-            android:popupBackground="#CC000000"/>
+            android:popupBackground="#F2000000"/>
         <!-- Button row with all three buttons horizontal and evenly spaced -->
         <LinearLayout
             android:layout_width="match_parent"

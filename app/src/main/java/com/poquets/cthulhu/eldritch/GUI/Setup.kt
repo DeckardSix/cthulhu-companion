@@ -269,7 +269,21 @@ class Setup : AppCompatActivity() {
             "Rise of the Elder Things", "Nephren-Ka"
         )
         
-        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, ancientOnes)
+        val adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, ancientOnes) {
+            override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
+                val view = super.getView(position, convertView, parent)
+                val textView = view.findViewById<TextView>(android.R.id.text1)
+                textView?.setTextColor(android.graphics.Color.WHITE)
+                return view
+            }
+            
+            override fun getDropDownView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
+                val view = super.getDropDownView(position, convertView, parent)
+                val textView = view.findViewById<TextView>(android.R.id.text1)
+                textView?.setTextColor(android.graphics.Color.WHITE)
+                return view
+            }
+        }
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         ancientOneSpinner.adapter = adapter
     }

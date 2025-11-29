@@ -47,6 +47,27 @@ class Setup : AppCompatActivity() {
     // Track selection state for each expansion
     private val expansionSelected = mutableMapOf<ImageView, Boolean>()
     
+    // Expansion dependencies: child -> parent (lazy initialization after views are ready)
+    private val expansionParent: Map<ImageView, ImageView> by lazy {
+        mapOf(
+            antarcticaBox to mountainsOfMadnessBox,
+            cosmicAlignmentBox to strangeRemnantsBox,
+            egyptBox to underThePyramidsBox,
+            litanyOfSecretsBox to underThePyramidsBox,
+            dreamlandsBoardBox to theDreamlandsBox
+        )
+    }
+    
+    // Parent -> children mapping (lazy initialization after views are ready)
+    private val expansionChildren: Map<ImageView, List<ImageView>> by lazy {
+        mapOf(
+            mountainsOfMadnessBox to listOf(antarcticaBox),
+            strangeRemnantsBox to listOf(cosmicAlignmentBox),
+            underThePyramidsBox to listOf(egyptBox, litanyOfSecretsBox),
+            theDreamlandsBox to listOf(dreamlandsBoardBox)
+        )
+    }
+    
     private lateinit var ancientOneSpinner: Spinner
     private lateinit var continueButton: Button
     private lateinit var startButton: Button
@@ -157,8 +178,55 @@ class Setup : AppCompatActivity() {
     private fun toggleExpansion(imageView: ImageView, iconName: String) {
         val isSelected = expansionSelected[imageView] ?: false
         val newSelected = !isSelected
-        expansionSelected[imageView] = newSelected
-        setExpansionIcon(imageView, iconName, newSelected)
+        
+        // Handle parent-child dependencies
+        if (newSelected) {
+            // When selecting: if this is a child, also select the parent
+            val parent = expansionParent[imageView]
+            parent?.let { parentView ->
+                if (!(expansionSelected[parentView] ?: false)) {
+                    // Find parent's icon name
+                    val parentIconName = getIconNameForView(parentView)
+                    setExpansionState(parentView, parentIconName, true)
+                }
+            }
+        } else {
+            // When unselecting: if this is a parent, also unselect all children
+            val children = expansionChildren[imageView]
+            children?.forEach { childView ->
+                if (expansionSelected[childView] == true) {
+                    val childIconName = getIconNameForView(childView)
+                    setExpansionState(childView, childIconName, false)
+                }
+            }
+        }
+        
+        // Toggle the current expansion
+        setExpansionState(imageView, iconName, newSelected)
+    }
+    
+    private fun setExpansionState(imageView: ImageView, iconName: String, isSelected: Boolean) {
+        expansionSelected[imageView] = isSelected
+        setExpansionIcon(imageView, iconName, isSelected)
+    }
+    
+    private fun getIconNameForView(imageView: ImageView): String {
+        return when (imageView) {
+            forsakenLoreBox -> "icon_exp_fl"
+            mountainsOfMadnessBox -> "icon_exp_mom"
+            antarcticaBox -> "icon_exp_mom"
+            strangeRemnantsBox -> "icon_exp_sr"
+            cosmicAlignmentBox -> "icon_exp_sr"
+            underThePyramidsBox -> "icon_exp_utp"
+            egyptBox -> "icon_exp_utp"
+            litanyOfSecretsBox -> "icon_exp_utp"
+            signsOfCarcosaBox -> "icon_exp_soc"
+            theDreamlandsBox -> "icon_exp_td"
+            dreamlandsBoardBox -> "icon_exp_td"
+            citiesInRuinBox -> "icon_exp_cir"
+            masksOfNyarlathotepBox -> "icon_exp_mon"
+            else -> ""
+        }
     }
     
     private fun setExpansionIcon(imageView: ImageView, iconName: String, isSelected: Boolean) {

@@ -53,165 +53,320 @@
             android:textColor="@android:color/white"
             android:layout_alignParentLeft="true"
             android:layout_alignParentTop="true"/>
-        <!-- Base checkbox - hidden but kept in code for future use -->
-        <CheckBox
-            android:textSize="16dp"
-            android:id="@+id/baseBox"
-            android:layout_width="match_parent"
-            android:layout_height="20dp"
-            android:checked="true"
-            android:text="Base"
-            android:textColor="@android:color/white"
-            android:layout_below="@+id/expanHeader"
-            android:layout_alignParentLeft="true"
-            android:visibility="gone"/>
-        <CheckBox
-            android:textSize="16dp"
-            android:id="@+id/forsakenLoreBox"
-            android:layout_width="match_parent"
-            android:layout_height="20dp"
-            android:layout_marginTop="2dp"
-            android:checked="false"
-            android:text="Forsaken Lore"
-            android:textColor="@android:color/white"
-            android:layout_below="@+id/expanHeader"
-            android:layout_alignParentLeft="true"/>
-        <CheckBox
-            android:textSize="16dp"
-            android:id="@+id/mountainsOfMadnessBox"
-            android:layout_width="match_parent"
-            android:layout_height="20dp"
-            android:layout_marginTop="2dp"
-            android:checked="false"
-            android:text="Mountains of Madness"
-            android:textColor="@android:color/white"
-            android:layout_below="@+id/forsakenLoreBox"
-            android:layout_alignParentLeft="true"/>
-        <CheckBox
-            android:textSize="16dp"
-            android:id="@+id/antarcticaBox"
-            android:layout_width="match_parent"
-            android:layout_height="20dp"
-            android:layout_marginLeft="30dp"
-            android:layout_marginTop="2dp"
-            android:checked="false"
-            android:text="Antarctica"
-            android:textColor="@android:color/white"
-            android:layout_below="@+id/mountainsOfMadnessBox"
-            android:layout_alignParentLeft="true"
-            android:layout_centerVertical="true"/>
-        <CheckBox
-            android:textSize="16dp"
-            android:id="@+id/strangeRemnantsBox"
-            android:layout_width="match_parent"
-            android:layout_height="20dp"
-            android:layout_marginTop="2dp"
-            android:checked="false"
-            android:text="Strange Remnants"
-            android:textColor="@android:color/white"
-            android:layout_below="@+id/antarcticaBox"
-            android:layout_alignParentLeft="true"/>
-        <CheckBox
-            android:textSize="16dp"
-            android:gravity="top"
-            android:id="@+id/cosmicAlignmentBox"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginLeft="30dp"
-            android:layout_marginTop="2dp"
-            android:checked="false"
-            android:text="Cosmic Alignment - Prelude Card"
-            android:textColor="@android:color/white"
-            android:layout_alignParentLeft="true"
-            android:layout_centerVertical="true"/>
-        <CheckBox
-            android:textSize="16dp"
-            android:id="@+id/underThePyramidsBox"
-            android:layout_width="match_parent"
-            android:layout_height="20dp"
-            android:checked="false"
-            android:text="Under the Pyramids"
-            android:textColor="@android:color/white"
-            android:layout_below="@+id/strangeRemnantsBox"
-            android:layout_alignParentLeft="true"/>
-        <CheckBox
-            android:textSize="16dp"
-            android:id="@+id/egyptBox"
+        <!-- Base image - hidden but kept in code for future use -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginLeft="30dp"
-            android:checked="false"
-            android:text="Egypt"
-            android:textColor="@android:color/white"
-            android:layout_alignParentLeft="true"
-            android:layout_centerVertical="true"/>
-        <CheckBox
-            android:textSize="16dp"
-            android:gravity="top"
-            android:id="@+id/litanyOfSecretsBox"
+            android:orientation="horizontal"
+            android:layout_marginTop="2dp"
+            android:gravity="center_vertical"
+            android:visibility="gone">
+            <ImageView
+                android:id="@+id/baseBox"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:contentDescription="Base"
+                android:clickable="true"
+                android:focusable="true"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Base"
+                android:textColor="@android:color/white"
+                android:textSize="16dp"
+                android:layout_marginStart="8dp"/>
+        </LinearLayout>
+        
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="2dp"
+            android:gravity="center_vertical">
+            <ImageView
+                android:id="@+id/forsakenLoreBox"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:contentDescription="Forsaken Lore"
+                android:clickable="true"
+                android:focusable="true"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Forsaken Lore"
+                android:textColor="@android:color/white"
+                android:textSize="16dp"
+                android:layout_marginStart="8dp"/>
+        </LinearLayout>
+        
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="2dp"
+            android:gravity="center_vertical">
+            <ImageView
+                android:id="@+id/mountainsOfMadnessBox"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:contentDescription="Mountains of Madness"
+                android:clickable="true"
+                android:focusable="true"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Mountains of Madness"
+                android:textColor="@android:color/white"
+                android:textSize="16dp"
+                android:layout_marginStart="8dp"/>
+        </LinearLayout>
+        
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
             android:layout_marginLeft="30dp"
-            android:checked="false"
-            android:text="Litany of Secrets - Prelude Card"
-            android:textColor="@android:color/white"
-            android:layout_alignParentLeft="true"
-            android:layout_centerVertical="true"/>
-        <CheckBox
-            android:textSize="16dp"
-            android:id="@+id/signsOfCarcosaBox"
-            android:layout_width="match_parent"
-            android:layout_height="20dp"
             android:layout_marginTop="2dp"
-            android:checked="false"
-            android:text="Signs of Carcosa"
-            android:textColor="@android:color/white"
-            android:layout_alignParentLeft="true"/>
-        <CheckBox
-            android:textSize="16dp"
-            android:id="@+id/theDreamlandsBox"
+            android:gravity="center_vertical">
+            <ImageView
+                android:id="@+id/antarcticaBox"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:contentDescription="Antarctica"
+                android:clickable="true"
+                android:focusable="true"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Antarctica"
+                android:textColor="@android:color/white"
+                android:textSize="16dp"
+                android:layout_marginStart="8dp"/>
+        </LinearLayout>
+        
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="20dp"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
             android:layout_marginTop="2dp"
-            android:checked="false"
-            android:text="The Dreamlands"
-            android:textColor="@android:color/white"
-            android:layout_alignParentLeft="true"/>
-        <CheckBox
-            android:enabled="false"
-            android:textSize="16dp"
-            android:id="@+id/dreamlandsBoardBox"
+            android:gravity="center_vertical">
+            <ImageView
+                android:id="@+id/strangeRemnantsBox"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:contentDescription="Strange Remnants"
+                android:clickable="true"
+                android:focusable="true"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Strange Remnants"
+                android:textColor="@android:color/white"
+                android:textSize="16dp"
+                android:layout_marginStart="8dp"/>
+        </LinearLayout>
+        
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
             android:layout_marginLeft="30dp"
-            android:checked="false"
-            android:text="Dreamlands Board"
-            android:textColor="@android:color/white"
-            android:layout_weight="0.16"
-            android:layout_alignParentLeft="true"
-            android:layout_centerVertical="true"/>
-        <CheckBox
-            android:textSize="16dp"
-            android:id="@+id/citiesInRuinBox"
-            android:layout_width="match_parent"
-            android:layout_height="20dp"
             android:layout_marginTop="2dp"
-            android:checked="false"
-            android:text="Cities in Ruin"
-            android:textColor="@android:color/white"
-            android:layout_below="@+id/dreamlandsBoardBox"
-            android:layout_alignParentLeft="true"/>
-        <CheckBox
-            android:textSize="16dp"
-            android:id="@+id/masksOfNyarlathotepBox"
+            android:gravity="center_vertical">
+            <ImageView
+                android:id="@+id/cosmicAlignmentBox"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:contentDescription="Cosmic Alignment - Prelude Card"
+                android:clickable="true"
+                android:focusable="true"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Cosmic Alignment - Prelude Card"
+                android:textColor="@android:color/white"
+                android:textSize="16dp"
+                android:layout_marginStart="8dp"/>
+        </LinearLayout>
+        
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="20dp"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
             android:layout_marginTop="2dp"
-            android:checked="false"
-            android:text="Masks of Nyarlathotep"
-            android:textColor="@android:color/white"
-            android:layout_below="@+id/citiesInRuinBox"
-            android:layout_alignParentLeft="true"/>
+            android:gravity="center_vertical">
+            <ImageView
+                android:id="@+id/underThePyramidsBox"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:contentDescription="Under the Pyramids"
+                android:clickable="true"
+                android:focusable="true"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Under the Pyramids"
+                android:textColor="@android:color/white"
+                android:textSize="16dp"
+                android:layout_marginStart="8dp"/>
+        </LinearLayout>
+        
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginLeft="30dp"
+            android:layout_marginTop="2dp"
+            android:gravity="center_vertical">
+            <ImageView
+                android:id="@+id/egyptBox"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:contentDescription="Egypt"
+                android:clickable="true"
+                android:focusable="true"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Egypt"
+                android:textColor="@android:color/white"
+                android:textSize="16dp"
+                android:layout_marginStart="8dp"/>
+        </LinearLayout>
+        
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginLeft="30dp"
+            android:layout_marginTop="2dp"
+            android:gravity="center_vertical">
+            <ImageView
+                android:id="@+id/litanyOfSecretsBox"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:contentDescription="Litany of Secrets - Prelude Card"
+                android:clickable="true"
+                android:focusable="true"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Litany of Secrets - Prelude Card"
+                android:textColor="@android:color/white"
+                android:textSize="16dp"
+                android:layout_marginStart="8dp"/>
+        </LinearLayout>
+        
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="2dp"
+            android:gravity="center_vertical">
+            <ImageView
+                android:id="@+id/signsOfCarcosaBox"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:contentDescription="Signs of Carcosa"
+                android:clickable="true"
+                android:focusable="true"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Signs of Carcosa"
+                android:textColor="@android:color/white"
+                android:textSize="16dp"
+                android:layout_marginStart="8dp"/>
+        </LinearLayout>
+        
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="2dp"
+            android:gravity="center_vertical">
+            <ImageView
+                android:id="@+id/theDreamlandsBox"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:contentDescription="The Dreamlands"
+                android:clickable="true"
+                android:focusable="true"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="The Dreamlands"
+                android:textColor="@android:color/white"
+                android:textSize="16dp"
+                android:layout_marginStart="8dp"/>
+        </LinearLayout>
+        
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginLeft="30dp"
+            android:layout_marginTop="2dp"
+            android:gravity="center_vertical">
+            <ImageView
+                android:id="@+id/dreamlandsBoardBox"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:contentDescription="Dreamlands Board"
+                android:clickable="true"
+                android:focusable="true"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Dreamlands Board"
+                android:textColor="@android:color/white"
+                android:textSize="16dp"
+                android:layout_marginStart="8dp"/>
+        </LinearLayout>
+        
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="2dp"
+            android:gravity="center_vertical">
+            <ImageView
+                android:id="@+id/citiesInRuinBox"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:contentDescription="Cities in Ruin"
+                android:clickable="true"
+                android:focusable="true"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Cities in Ruin"
+                android:textColor="@android:color/white"
+                android:textSize="16dp"
+                android:layout_marginStart="8dp"/>
+        </LinearLayout>
+        
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="2dp"
+            android:gravity="center_vertical">
+            <ImageView
+                android:id="@+id/masksOfNyarlathotepBox"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:contentDescription="Masks of Nyarlathotep"
+                android:clickable="true"
+                android:focusable="true"/>
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Masks of Nyarlathotep"
+                android:textColor="@android:color/white"
+                android:textSize="16dp"
+                android:layout_marginStart="8dp"/>
+        </LinearLayout>
         <TextView
             android:textSize="20dp"
             android:gravity="center"

@@ -11,7 +11,6 @@ import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.widget.CompoundButtonCompat
 import com.poquets.cthulhu.R
 import com.poquets.cthulhu.eldritch.Config
 import com.poquets.cthulhu.eldritch.DecksAdapter
@@ -30,20 +29,23 @@ import java.io.File
  */
 class Setup : AppCompatActivity() {
     
-    private lateinit var baseBox: CheckBox
-    private lateinit var forsakenLoreBox: CheckBox
-    private lateinit var mountainsOfMadnessBox: CheckBox
-    private lateinit var antarcticaBox: CheckBox
-    private lateinit var strangeRemnantsBox: CheckBox
-    private lateinit var cosmicAlignmentBox: CheckBox
-    private lateinit var underThePyramidsBox: CheckBox
-    private lateinit var egyptBox: CheckBox
-    private lateinit var litanyOfSecretsBox: CheckBox
-    private lateinit var signsOfCarcosaBox: CheckBox
-    private lateinit var theDreamlandsBox: CheckBox
-    private lateinit var dreamlandsBoardBox: CheckBox
-    private lateinit var citiesInRuinBox: CheckBox
-    private lateinit var masksOfNyarlathotepBox: CheckBox
+    private lateinit var baseBox: ImageView
+    private lateinit var forsakenLoreBox: ImageView
+    private lateinit var mountainsOfMadnessBox: ImageView
+    private lateinit var antarcticaBox: ImageView
+    private lateinit var strangeRemnantsBox: ImageView
+    private lateinit var cosmicAlignmentBox: ImageView
+    private lateinit var underThePyramidsBox: ImageView
+    private lateinit var egyptBox: ImageView
+    private lateinit var litanyOfSecretsBox: ImageView
+    private lateinit var signsOfCarcosaBox: ImageView
+    private lateinit var theDreamlandsBox: ImageView
+    private lateinit var dreamlandsBoardBox: ImageView
+    private lateinit var citiesInRuinBox: ImageView
+    private lateinit var masksOfNyarlathotepBox: ImageView
+    
+    // Track selection state for each expansion
+    private val expansionSelected = mutableMapOf<ImageView, Boolean>()
     
     private lateinit var ancientOneSpinner: Spinner
     private lateinit var continueButton: Button
@@ -99,89 +101,97 @@ class Setup : AppCompatActivity() {
     }
     
     private fun setupCheckboxes() {
-        val checkboxes = listOf(
-            baseBox, forsakenLoreBox, mountainsOfMadnessBox, antarcticaBox,
-            strangeRemnantsBox, cosmicAlignmentBox, underThePyramidsBox,
-            egyptBox, litanyOfSecretsBox, signsOfCarcosaBox, theDreamlandsBox,
-            dreamlandsBoardBox, citiesInRuinBox, masksOfNyarlathotepBox
+        // Expansion icon mappings: ImageView -> icon base name
+        val expansionIcons = mapOf(
+            forsakenLoreBox to "icon_exp_fl",
+            mountainsOfMadnessBox to "icon_exp_mom",
+            antarcticaBox to "icon_exp_mom", // Antarctica uses MoM icon
+            strangeRemnantsBox to "icon_exp_sr",
+            cosmicAlignmentBox to "icon_exp_sr", // Cosmic Alignment uses SR icon
+            underThePyramidsBox to "icon_exp_utp",
+            egyptBox to "icon_exp_utp", // Egypt uses UtP icon
+            litanyOfSecretsBox to "icon_exp_utp", // Litany uses UtP icon
+            signsOfCarcosaBox to "icon_exp_soc",
+            theDreamlandsBox to "icon_exp_td",
+            dreamlandsBoardBox to "icon_exp_td", // Dreamlands Board uses TD icon
+            citiesInRuinBox to "icon_exp_cir",
+            masksOfNyarlathotepBox to "icon_exp_mon"
         )
         
-        checkboxes.forEach { checkbox ->
-            setCheckboxWhite(checkbox)
+        // Initialize all expansions as unselected
+        expansionIcons.keys.forEach { imageView ->
+            expansionSelected[imageView] = false
         }
         
-        // Set expansion icons
-        setExpansionIcon(forsakenLoreBox, "icon_exp_fl")
-        setExpansionIcon(mountainsOfMadnessBox, "icon_exp_mom")
-        setExpansionIcon(antarcticaBox, "icon_exp_mom") // Antarctica uses MoM icon
-        setExpansionIcon(strangeRemnantsBox, "icon_exp_sr")
-        setExpansionIcon(cosmicAlignmentBox, "icon_exp_sr") // Cosmic Alignment uses SR icon
-        setExpansionIcon(underThePyramidsBox, "icon_exp_utp")
-        setExpansionIcon(egyptBox, "icon_exp_utp") // Egypt uses UtP icon
-        setExpansionIcon(litanyOfSecretsBox, "icon_exp_utp") // Litany uses UtP icon
-        setExpansionIcon(signsOfCarcosaBox, "icon_exp_soc")
-        setExpansionIcon(theDreamlandsBox, "icon_exp_td")
-        setExpansionIcon(dreamlandsBoardBox, "icon_exp_td") // Dreamlands Board uses TD icon
-        setExpansionIcon(citiesInRuinBox, "icon_exp_cir")
-        setExpansionIcon(masksOfNyarlathotepBox, "icon_exp_mon")
+        // Set up each expansion image view
+        expansionIcons.forEach { (imageView, iconName) ->
+            setExpansionIcon(imageView, iconName, false)
+            
+            // Make the entire row clickable (image and text)
+            val parentLayout = imageView.parent as? android.view.ViewGroup
+            val toggleAction: (View) -> Unit = { _ ->
+                toggleExpansion(imageView, iconName)
+            }
+            
+            parentLayout?.setOnClickListener(toggleAction)
+            parentLayout?.isClickable = true
+            parentLayout?.isFocusable = true
+            
+            // Make all child views (including TextView) also trigger the toggle
+            parentLayout?.let { layout ->
+                for (i in 0 until layout.childCount) {
+                    val child = layout.getChildAt(i)
+                    if (child is TextView || child is ImageView) {
+                        child.setOnClickListener(toggleAction)
+                        child.isClickable = true
+                        child.isFocusable = true
+                    }
+                }
+            }
+        }
         
-        // Default: BASE is checked
-        baseBox.isChecked = true
+        // Default: BASE is selected (but hidden)
+        expansionSelected[baseBox] = true
     }
     
-    private fun setCheckboxWhite(checkbox: CheckBox) {
-        checkbox.setTextColor(android.graphics.Color.WHITE)
-        CompoundButtonCompat.setButtonTintList(
-            checkbox,
-            android.content.res.ColorStateList.valueOf(android.graphics.Color.WHITE)
-        )
+    private fun toggleExpansion(imageView: ImageView, iconName: String) {
+        val isSelected = expansionSelected[imageView] ?: false
+        val newSelected = !isSelected
+        expansionSelected[imageView] = newSelected
+        setExpansionIcon(imageView, iconName, newSelected)
     }
     
-    private fun setExpansionIcon(checkbox: CheckBox, iconName: String) {
+    private fun setExpansionIcon(imageView: ImageView, iconName: String, isSelected: Boolean) {
         try {
-            // Try to load from assets first (like Arkham expansion icons)
-            val assetPath = "expansion/$iconName.png"
+            // Use _glow.png version when selected, regular version when not selected
+            val iconFileName = if (isSelected) "${iconName}_glow.png" else "${iconName}.png"
+            val assetPath = "expansion/$iconFileName"
+            
             try {
                 val inputStream = assets.open(assetPath)
                 val bitmap = android.graphics.BitmapFactory.decodeStream(inputStream)
                 inputStream.close()
                 
                 if (bitmap != null) {
-                    val iconSize = TypedValue.applyDimension(
-                        TypedValue.COMPLEX_UNIT_DIP, 24f, resources.displayMetrics
-                    ).toInt()
-                    val scaledBitmap = android.graphics.Bitmap.createScaledBitmap(bitmap, iconSize, iconSize, true)
-                    val drawable = android.graphics.drawable.BitmapDrawable(resources, scaledBitmap)
-                    drawable.setBounds(0, 0, iconSize, iconSize)
-                    checkbox.setCompoundDrawables(drawable, null, null, null)
-                    checkbox.compoundDrawablePadding = TypedValue.applyDimension(
-                        TypedValue.COMPLEX_UNIT_DIP, 8f, resources.displayMetrics
-                    ).toInt()
-                    Log.d("Setup", "Successfully loaded icon: $iconName from assets")
+                    imageView.setImageBitmap(bitmap)
+                    Log.d("Setup", "Successfully loaded icon: $iconFileName from assets")
                     return
                 }
             } catch (e: java.io.IOException) {
-                Log.d("Setup", "Icon not found in assets: $assetPath, trying drawable resources")
+                Log.d("Setup", "Icon not found in assets: $assetPath")
             }
             
             // Fallback to drawable resources
-            val iconId = resources.getIdentifier(iconName, "drawable", packageName)
+            val drawableName = if (isSelected) "${iconName}_glow" else iconName
+            val iconId = resources.getIdentifier(drawableName, "drawable", packageName)
             if (iconId != 0) {
-                val icon = resources.getDrawable(iconId, theme)
-                val iconSize = TypedValue.applyDimension(
-                    TypedValue.COMPLEX_UNIT_DIP, 24f, resources.displayMetrics
-                ).toInt()
-                icon.setBounds(0, 0, iconSize, iconSize)
-                checkbox.setCompoundDrawables(icon, null, null, null)
-                checkbox.compoundDrawablePadding = TypedValue.applyDimension(
-                    TypedValue.COMPLEX_UNIT_DIP, 8f, resources.displayMetrics
-                ).toInt()
-                Log.d("Setup", "Successfully loaded icon: $iconName from drawable resources")
+                imageView.setImageResource(iconId)
+                Log.d("Setup", "Successfully loaded icon: $drawableName from drawable resources")
             } else {
-                Log.d("Setup", "Icon not found: $iconName (tried assets/expansion/$iconName.png and drawable/$iconName)")
+                Log.d("Setup", "Icon not found: $drawableName (tried assets/expansion/$iconFileName and drawable/$drawableName)")
             }
         } catch (e: Exception) {
-            Log.w("Setup", "Error setting icon $iconName: ${e.message}", e)
+            Log.w("Setup", "Error setting icon $iconName (selected=$isSelected): ${e.message}", e)
         }
     }
     
@@ -257,20 +267,20 @@ class Setup : AppCompatActivity() {
             
             // Set Config values
             Config.ANCIENT_ONE = ancientOne.replace(" ", "_").replace("'", ".")
-            Config.BASE = baseBox.isChecked
-            Config.FORSAKEN_LORE = forsakenLoreBox.isChecked
-            Config.MOUNTAINS_OF_MADNESS = mountainsOfMadnessBox.isChecked
-            Config.ANTARCTICA = antarcticaBox.isChecked
-            Config.STRANGE_REMNANTS = strangeRemnantsBox.isChecked
-            Config.COSMIC_ALIGNMENT = cosmicAlignmentBox.isChecked
-            Config.UNDER_THE_PYRAMIDS = underThePyramidsBox.isChecked
-            Config.EGYPT = egyptBox.isChecked
-            Config.LITANY_OF_SECRETS = litanyOfSecretsBox.isChecked
-            Config.SIGNS_OF_CARCOSA = signsOfCarcosaBox.isChecked
-            Config.THE_DREAMLANDS = theDreamlandsBox.isChecked
-            Config.DREAMLANDS_BOARD = dreamlandsBoardBox.isChecked
-            Config.CITIES_IN_RUIN = citiesInRuinBox.isChecked
-            Config.MASKS_OF_NYARLATHOTEP = masksOfNyarlathotepBox.isChecked
+            Config.BASE = expansionSelected[baseBox] ?: true
+            Config.FORSAKEN_LORE = expansionSelected[forsakenLoreBox] ?: false
+            Config.MOUNTAINS_OF_MADNESS = expansionSelected[mountainsOfMadnessBox] ?: false
+            Config.ANTARCTICA = expansionSelected[antarcticaBox] ?: false
+            Config.STRANGE_REMNANTS = expansionSelected[strangeRemnantsBox] ?: false
+            Config.COSMIC_ALIGNMENT = expansionSelected[cosmicAlignmentBox] ?: false
+            Config.UNDER_THE_PYRAMIDS = expansionSelected[underThePyramidsBox] ?: false
+            Config.EGYPT = expansionSelected[egyptBox] ?: false
+            Config.LITANY_OF_SECRETS = expansionSelected[litanyOfSecretsBox] ?: false
+            Config.SIGNS_OF_CARCOSA = expansionSelected[signsOfCarcosaBox] ?: false
+            Config.THE_DREAMLANDS = expansionSelected[theDreamlandsBox] ?: false
+            Config.DREAMLANDS_BOARD = expansionSelected[dreamlandsBoardBox] ?: false
+            Config.CITIES_IN_RUIN = expansionSelected[citiesInRuinBox] ?: false
+            Config.MASKS_OF_NYARLATHOTEP = expansionSelected[masksOfNyarlathotepBox] ?: false
             
             // Save game state
             gameState.setCurrentGame(GameType.ELDRITCH)
@@ -313,20 +323,20 @@ class Setup : AppCompatActivity() {
     
     private fun getSelectedExpansions(): List<String> {
         val expansions = mutableListOf<String>()
-        if (baseBox.isChecked) expansions.add("BASE")
-        if (forsakenLoreBox.isChecked) expansions.add("FORSAKEN_LORE")
-        if (mountainsOfMadnessBox.isChecked) expansions.add("MOUNTAINS_OF_MADNESS")
-        if (antarcticaBox.isChecked) expansions.add("ANTARCTICA")
-        if (strangeRemnantsBox.isChecked) expansions.add("STRANGE_REMNANTS")
-        if (cosmicAlignmentBox.isChecked) expansions.add("COSMIC_ALIGNMENT")
-        if (underThePyramidsBox.isChecked) expansions.add("UNDER_THE_PYRAMIDS")
-        if (egyptBox.isChecked) expansions.add("EGYPT")
-        if (litanyOfSecretsBox.isChecked) expansions.add("LITANY_OF_SECRETS")
-        if (signsOfCarcosaBox.isChecked) expansions.add("SIGNS_OF_CARCOSA")
-        if (theDreamlandsBox.isChecked) expansions.add("THE_DREAMLANDS")
-        if (dreamlandsBoardBox.isChecked) expansions.add("DREAMLANDS_BOARD")
-        if (citiesInRuinBox.isChecked) expansions.add("CITIES_IN_RUIN")
-        if (masksOfNyarlathotepBox.isChecked) expansions.add("MASKS_OF_NYARLATHOTEP")
+        if (expansionSelected[baseBox] == true) expansions.add("BASE")
+        if (expansionSelected[forsakenLoreBox] == true) expansions.add("FORSAKEN_LORE")
+        if (expansionSelected[mountainsOfMadnessBox] == true) expansions.add("MOUNTAINS_OF_MADNESS")
+        if (expansionSelected[antarcticaBox] == true) expansions.add("ANTARCTICA")
+        if (expansionSelected[strangeRemnantsBox] == true) expansions.add("STRANGE_REMNANTS")
+        if (expansionSelected[cosmicAlignmentBox] == true) expansions.add("COSMIC_ALIGNMENT")
+        if (expansionSelected[underThePyramidsBox] == true) expansions.add("UNDER_THE_PYRAMIDS")
+        if (expansionSelected[egyptBox] == true) expansions.add("EGYPT")
+        if (expansionSelected[litanyOfSecretsBox] == true) expansions.add("LITANY_OF_SECRETS")
+        if (expansionSelected[signsOfCarcosaBox] == true) expansions.add("SIGNS_OF_CARCOSA")
+        if (expansionSelected[theDreamlandsBox] == true) expansions.add("THE_DREAMLANDS")
+        if (expansionSelected[dreamlandsBoardBox] == true) expansions.add("DREAMLANDS_BOARD")
+        if (expansionSelected[citiesInRuinBox] == true) expansions.add("CITIES_IN_RUIN")
+        if (expansionSelected[masksOfNyarlathotepBox] == true) expansions.add("MASKS_OF_NYARLATHOTEP")
         return expansions
     }
     

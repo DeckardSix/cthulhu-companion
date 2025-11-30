@@ -42,6 +42,7 @@ class CardViewFragment : Fragment(), View.OnClickListener {
             val args = Bundle()
             args.putString("REGION", cardAdapter.region)
             args.putString("ID", cardAdapter.ID)
+            args.putString("EXPANSION", cardAdapter.expansion)
             args.putString("TOP_HEADER", cardAdapter.topHeader)
             args.putString("TOP_ENCOUNTER", cardAdapter.topEncounter)
             args.putString("MIDDLE_HEADER", cardAdapter.middleHeader)
@@ -62,6 +63,7 @@ class CardViewFragment : Fragment(), View.OnClickListener {
         // Reconstruct card from arguments
         val region = args.getString("REGION")
         val id = args.getString("ID") ?: ""
+        val expansion = args.getString("EXPANSION") ?: "BASE"
         val topHeader = args.getString("TOP_HEADER")
         val topEncounter = args.getString("TOP_ENCOUNTER")
         val middleHeader = args.getString("MIDDLE_HEADER")
@@ -76,7 +78,7 @@ class CardViewFragment : Fragment(), View.OnClickListener {
         val unifiedCard = com.poquets.cthulhu.shared.database.UnifiedCard(
             gameType = com.poquets.cthulhu.shared.database.GameType.ELDRITCH,
             cardId = id,
-            expansion = "BASE",
+            expansion = expansion,
             encountered = encountered,
             region = region,
             topHeader = topHeader,
@@ -341,7 +343,135 @@ class CardViewFragment : Fragment(), View.OnClickListener {
         }
         
         frameLayout.addView(mainLayout)
+        
+        // Add expansion icon at bottom left (like Arkham cards)
+        addExpansionIcon(frameLayout)
+        
         return frameLayout
+    }
+    
+    /**
+     * Get expansion icon path from expansion name
+     * Returns the full path (e.g., "expansion/icon_exp_fl.png" or "checkbox/btn_ba_check_on.png")
+     */
+    private fun getExpansionIconPath(expansionName: String): String? {
+        return when (expansionName.uppercase()) {
+            "BASE" -> "checkbox/btn_ba_check_on.png" // Use Arkham base icon for Eldritch base game
+            "FORSAKEN_LORE" -> "expansion/icon_exp_fl.png"
+            "MOUNTAINS_OF_MADNESS" -> "expansion/icon_exp_mom.png"
+            "ANTARCTICA" -> "expansion/icon_exp_mom.png" // Antarctica uses MoM icon
+            "STRANGE_REMNANTS" -> "expansion/icon_exp_sr.png"
+            "COSMIC_ALIGNMENT" -> "expansion/icon_exp_sr.png" // Cosmic Alignment uses SR icon
+            "UNDER_THE_PYRAMIDS" -> "expansion/icon_exp_utp.png"
+            "EGYPT" -> "expansion/icon_exp_utp.png" // Egypt uses UtP icon
+            "LITANY_OF_SECRETS" -> "expansion/icon_exp_utp.png" // Litany uses UtP icon
+            "SIGNS_OF_CARCOSA" -> "expansion/icon_exp_soc.png"
+            "THE_DREAMLANDS" -> "expansion/icon_exp_td.png"
+            "DREAMLANDS" -> "expansion/icon_exp_td.png" // Dreamlands uses TD icon
+            "CITIES_IN_RUIN" -> "expansion/icon_exp_cir.png"
+            "MASKS_OF_NYARLATHOTEP" -> "expansion/icon_exp_mon.png"
+            else -> {
+                Log.w("CardViewFragment", "Unknown expansion name: $expansionName")
+                null
+            }
+        }
+    }
+    
+    /**
+     * Add expansion icon to the bottom left of the card (like Arkham cards)
+     */
+    private fun addExpansionIcon(frameLayout: FrameLayout) {
+        fragmentScope.launch {
+            try {
+                // Get expansion name from card
+                val expansionName = card.expansion ?: "BASE"
+                Log.d("CardViewFragment", "Card expansion: $expansionName")
+                
+                // Get icon path (returns full path including folder)
+                val iconPath = getExpansionIconPath(expansionName)
+                if (iconPath == null) {
+                    Log.d("CardViewFragment", "No icon path for expansion: $expansionName")
+                    return@launch
+                }
+                
+                Log.d("CardViewFragment", "Loading expansion icon from: $iconPath")
+                
+                val iconBitmap = withContext(Dispatchers.IO) {
+                    try {
+                        val inputStream = requireContext().assets.open(iconPath)
+                        val opts = BitmapFactory.Options().apply {
+                            inScaled = true
+                            inDensity = 120 // DisplayMetrics.DENSITY_MEDIUM
+                            inTargetDensity = requireContext().resources.displayMetrics.densityDpi
+                        }
+                        val bitmap = BitmapFactory.decodeStream(inputStream, null, opts)
+                        inputStream.close()
+                        if (bitmap != null) {
+                            Log.d("CardViewFragment", "Successfully loaded expansion icon: ${bitmap.width}x${bitmap.height}")
+                        }
+                        bitmap
+                    } catch (e: IOException) {
+                        Log.w("CardViewFragment", "Could not load expansion icon from $iconPath: ${e.message}", e)
+                        null
+                    }
+                }
+                
+                if (iconBitmap != null) {
+                    withContext(Dispatchers.Main) {
+                        // Create ImageView for expansion icon at bottom left
+                        val iconSize = TypedValue.applyDimension(
+                            TypedValue.COMPLEX_UNIT_DIP,
+                            48f, // 48dp icon size (same as Arkham)
+                            requireContext().resources.displayMetrics
+                        ).toInt()
+                        
+                        val expansionIcon = ImageView(requireContext()).apply {
+                            setImageBitmap(iconBitmap)
+                            scaleType = ImageView.ScaleType.FIT_CENTER
+                            elevation = 20f // High elevation to ensure icon is above content
+                            isClickable = false
+                            isFocusable = false
+                            layoutParams = FrameLayout.LayoutParams(
+                                iconSize,
+                                iconSize
+                            ).apply {
+                                gravity = android.view.Gravity.BOTTOM or android.view.Gravity.START
+                                setMargins(
+                                    TypedValue.applyDimension(
+                                        TypedValue.COMPLEX_UNIT_DIP,
+                                        16f,
+                                        requireContext().resources.displayMetrics
+                                    ).toInt(), // 16dp left margin
+                                    0,
+                                    0,
+                                    TypedValue.applyDimension(
+                                        TypedValue.COMPLEX_UNIT_DIP,
+                                        16f,
+                                        requireContext().resources.displayMetrics
+                                    ).toInt() // 16dp bottom margin
+                                )
+                            }
+                        }
+                        
+                        // Ensure FrameLayout doesn't clip children
+                        frameLayout.clipToPadding = false
+                        frameLayout.clipChildren = false
+                        
+                        // Add icon to frame layout (on top of everything)
+                        frameLayout.addView(expansionIcon)
+                        expansionIcon.bringToFront()
+                        frameLayout.requestLayout()
+                        frameLayout.invalidate()
+                        
+                        Log.d("CardViewFragment", "Added expansion icon for $expansionName at bottom left")
+                    }
+                } else {
+                    Log.w("CardViewFragment", "Expansion icon bitmap is null for: $iconPath")
+                }
+            } catch (e: Exception) {
+                Log.w("CardViewFragment", "Error adding expansion icon: ${e.message}", e)
+            }
+        }
     }
     
     private fun formatText(text: String?, textColor: Int): Spanned {

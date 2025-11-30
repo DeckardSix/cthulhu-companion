@@ -74,9 +74,18 @@ class DeckManager(private val context: Context, private val gameType: GameType) 
     
     /**
      * Get a deck by name
+     * Shuffles the deck each time it's accessed to ensure randomization
      */
     fun getDeck(deckName: String): List<UnifiedCard> {
-        return decks[deckName] ?: emptyList()
+        val deck = decks[deckName] ?: return emptyList()
+        
+        // Shuffle the deck each time it's accessed to ensure random card selection
+        if (deck.isNotEmpty()) {
+            Collections.shuffle(deck)
+            Log.d("DeckManager", "Shuffled deck $deckName (${deck.size} cards) for random access")
+        }
+        
+        return deck
     }
     
     /**
@@ -123,6 +132,7 @@ class DeckManager(private val context: Context, private val gameType: GameType) 
     
     /**
      * Discard a card
+     * Note: Card is NOT removed from deck, only marked as encountered in database
      */
     suspend fun discardCard(card: UnifiedCard, encountered: String = "DISCARDED") {
         withContext(Dispatchers.IO) {
@@ -138,6 +148,7 @@ class DeckManager(private val context: Context, private val gameType: GameType) 
                 // Add to discard pile
                 val updatedCard = card.copy(encountered = encountered)
                 discardPile.add(0, updatedCard)
+                Log.d("DeckManager", "Card ${card.cardId} marked as encountered: $encountered (discard size: ${discardPile.size})")
                 
             } catch (e: Exception) {
                 Log.e("DeckManager", "Error discarding card: ${e.message}", e)

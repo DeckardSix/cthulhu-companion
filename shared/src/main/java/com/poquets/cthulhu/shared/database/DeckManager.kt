@@ -37,7 +37,13 @@ class DeckManager(private val context: Context, private val gameType: GameType) 
                 val allCards = if (expansions.isEmpty()) {
                     repository.getCards(gameType)
                 } else {
-                    expansions.flatMap { expansion ->
+                    // For Eldritch, always include BASE expansion as it's required for core game mechanics
+                    val expansionsToLoad = if (gameType == GameType.ELDRITCH && !expansions.contains("BASE")) {
+                        expansions + "BASE"
+                    } else {
+                        expansions
+                    }
+                    expansionsToLoad.flatMap { expansion ->
                         repository.getCardsByExpansion(gameType, expansion)
                     }
                 }
@@ -45,11 +51,18 @@ class DeckManager(private val context: Context, private val gameType: GameType) 
                 // Group cards by region (Eldritch) or neighborhood (Arkham)
                 when (gameType) {
                     GameType.ELDRITCH -> {
-                        // Group by region
-                        allCards.groupBy { it.region ?: "UNKNOWN" }.forEach { (region, cards) ->
-                            decks[region] = cards.filter { it.encountered == "NONE" }.toMutableList()
+                        // Group by region, normalizing hyphens to underscores
+                        // This handles both old data (ANTARCTICA-WEST) and new data (ANTARCTICA_WEST)
+                        val regionGroups = allCards.groupBy { (it.region ?: "UNKNOWN").replace("-", "_") }
+                        regionGroups.forEach { (region, cards) ->
+                            val unencountered = cards.filter { it.encountered == "NONE" }.toMutableList()
+                            decks[region] = unencountered
                             Collections.shuffle(decks[region])
+                            if (region.contains("ANTARCTICA", ignoreCase = true)) {
+                                Log.d("DeckManager", "Antarctica deck '$region': ${unencountered.size} unencountered cards out of ${cards.size} total (expansions: ${cards.map { it.expansion }.distinct().joinToString()})")
+                            }
                         }
+                        Log.d("DeckManager", "Initialized ${decks.size} Eldritch decks. Regions: ${decks.keys.sorted().joinToString()}")
                     }
                     GameType.ARKHAM -> {
                         // Group by neighborhood
@@ -75,14 +88,18 @@ class DeckManager(private val context: Context, private val gameType: GameType) 
     /**
      * Get a deck by name
      * Shuffles the deck each time it's accessed to ensure randomization
+     * Normalizes region names (hyphens to underscores) to handle both formats
      */
     fun getDeck(deckName: String): List<UnifiedCard> {
-        val deck = decks[deckName] ?: return emptyList()
+        // Normalize deck name: convert hyphens to underscores
+        // This handles both ANTARCTICA-WEST (from XML) and ANTARCTICA_WEST (expected format)
+        val normalizedName = deckName.replace("-", "_")
+        val deck = decks[normalizedName] ?: return emptyList()
         
         // Shuffle the deck each time it's accessed to ensure random card selection
         if (deck.isNotEmpty()) {
             Collections.shuffle(deck)
-            Log.d("DeckManager", "Shuffled deck $deckName (${deck.size} cards) for random access")
+            Log.d("DeckManager", "Shuffled deck $normalizedName (${deck.size} cards) for random access")
         }
         
         return deck
@@ -90,9 +107,12 @@ class DeckManager(private val context: Context, private val gameType: GameType) 
     
     /**
      * Check if a deck exists
+     * Normalizes region names (hyphens to underscores) to handle both formats
      */
     fun hasDeck(deckName: String): Boolean {
-        return decks.containsKey(deckName) && !decks[deckName].isNullOrEmpty()
+        // Normalize deck name: convert hyphens to underscores
+        val normalizedName = deckName.replace("-", "_")
+        return decks.containsKey(normalizedName) && !decks[normalizedName].isNullOrEmpty()
     }
     
     /**

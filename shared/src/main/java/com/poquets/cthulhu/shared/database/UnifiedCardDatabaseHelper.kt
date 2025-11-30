@@ -856,6 +856,8 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
     
     /**
      * Get cards by game type and expansion
+     * First looks up the canonical expansion name from the expansions table,
+     * then queries cards to handle name variations (e.g., "MOUNTAINS_OF_MADNESS" vs "Mountains of Madness")
      */
     fun getCardsByGameTypeAndExpansion(
         gameType: GameType,
@@ -864,15 +866,75 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
         rwLock.readLock().lock()
         try {
             val db = readableDatabase
-            val cursor = db.query(
-                TABLE_CARDS,
-                null,
-                "$COLUMN_GAME_TYPE = ? AND $COLUMN_EXPANSION = ?",
+            
+            // First, try to find the canonical expansion name from the expansions table
+            // This ensures we use the exact name as stored in the database
+            val expansionNames = mutableListOf<String>()
+            
+            // Try exact match first
+            val exactMatchCursor = db.query(
+                TABLE_EXPANSIONS,
+                arrayOf(COLUMN_EXP_NAME),
+                "$COLUMN_GAME_TYPE = ? AND $COLUMN_EXP_NAME = ?",
                 arrayOf(gameType.value, expansion),
-                null,
-                null,
-                "$COLUMN_CARD_ID ASC"
+                null, null, null, "1"
             )
+            exactMatchCursor.use {
+                if (it.moveToFirst()) {
+                    expansionNames.add(it.getString(0))
+                }
+            }
+            
+            // If no exact match, try case-insensitive and with underscores/spaces variations
+            if (expansionNames.isEmpty()) {
+                val variations = listOf(
+                    expansion,
+                    expansion.uppercase(),
+                    expansion.lowercase(),
+                    expansion.replace("_", " "),
+                    expansion.replace(" ", "_"),
+                    expansion.replace("_", " ").replaceFirstChar { it.uppercaseChar() }
+                )
+                
+                for (variation in variations.distinct()) {
+                    val variationCursor = db.query(
+                        TABLE_EXPANSIONS,
+                        arrayOf(COLUMN_EXP_NAME),
+                        "$COLUMN_GAME_TYPE = ? AND $COLUMN_EXP_NAME = ?",
+                        arrayOf(gameType.value, variation),
+                        null, null, null, "1"
+                    )
+                    variationCursor.use {
+                        if (it.moveToFirst()) {
+                            val foundName = it.getString(0)
+                            if (!expansionNames.contains(foundName)) {
+                                expansionNames.add(foundName)
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // If still no match in expansions table, use the provided expansion name directly
+            // (cards might have been stored with this name even if not in expansions table)
+            if (expansionNames.isEmpty()) {
+                expansionNames.add(expansion)
+                Log.w(TAG, "Expansion '$expansion' not found in expansions table, querying cards directly")
+            } else {
+                Log.d(TAG, "Found canonical expansion name(s): $expansionNames for query: $expansion")
+            }
+            
+            // Query cards matching any of the found expansion names
+            val placeholders = expansionNames.joinToString(",") { "?" }
+            val query = """
+                SELECT * FROM $TABLE_CARDS
+                WHERE $COLUMN_GAME_TYPE = ?
+                AND $COLUMN_EXPANSION IN ($placeholders)
+                ORDER BY $COLUMN_CARD_ID ASC
+            """.trimIndent()
+            
+            val queryArgs = arrayOf(gameType.value) + expansionNames.toTypedArray()
+            val cursor = db.rawQuery(query, queryArgs)
             
             val cards = mutableListOf<UnifiedCard>()
             cursor.use {
@@ -880,6 +942,33 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
                     cards.add(createCardFromCursor(it))
                 }
             }
+            
+            if (cards.isEmpty()) {
+                Log.w(TAG, "No cards found for gameType=${gameType.value}, expansion=$expansion (searched as: $expansionNames)")
+                // Debug: Check what expansions actually exist in the database
+                val debugCursor = db.rawQuery(
+                    "SELECT DISTINCT $COLUMN_EXPANSION, COUNT(*) as cnt FROM $TABLE_CARDS WHERE $COLUMN_GAME_TYPE = ? GROUP BY $COLUMN_EXPANSION",
+                    arrayOf(gameType.value)
+                )
+                val expansionCounts = mutableListOf<String>()
+                debugCursor.use {
+                    val expIndex = it.getColumnIndexOrThrow(COLUMN_EXPANSION)
+                    val cntIndex = it.getColumnIndexOrThrow("cnt")
+                    while (it.moveToNext()) {
+                        expansionCounts.add("${it.getString(expIndex)}=${it.getInt(cntIndex)}")
+                    }
+                }
+                Log.w(TAG, "Available expansions in database: ${expansionCounts.joinToString(", ")}")
+            } else {
+                Log.d(TAG, "Found ${cards.size} cards for gameType=${gameType.value}, expansion(s)=$expansionNames")
+                // Debug: Check region distribution for Antarctica-related cards
+                val antarcticaCards = cards.filter { it.region?.contains("ANTARCTICA", ignoreCase = true) == true }
+                if (antarcticaCards.isNotEmpty()) {
+                    val regionGroups = antarcticaCards.groupBy { it.region }
+                    Log.d(TAG, "Antarctica cards found: ${regionGroups.map { "${it.key}=${it.value.size}" }.joinToString()}")
+                }
+            }
+            
             return cards
         } finally {
             rwLock.readLock().unlock()

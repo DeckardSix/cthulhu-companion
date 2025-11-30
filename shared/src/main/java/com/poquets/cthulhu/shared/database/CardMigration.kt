@@ -887,7 +887,9 @@ object CardMigration {
         
         val locationNodes = getChildElements(locationsNode)
         for (locationNode in locationNodes) {
-            val regionName = locationNode.nodeName
+            // Normalize region name: convert hyphens to underscores to match expected format
+            // XML uses ANTARCTICA-WEST, but code expects ANTARCTICA_WEST
+            val regionName = locationNode.nodeName.replace("-", "_")
             val topHeader = getNodeText(getChildElement(locationNode, "TOP_HEADER"))
             val middleHeader = getNodeText(getChildElement(locationNode, "MIDDLE_HEADER"))
             val bottomHeader = getNodeText(getChildElement(locationNode, "BOTTOM_HEADER"))
@@ -1043,7 +1045,8 @@ object CardMigration {
         
         val childNodes = getChildElements(node)
         for (specialNode in childNodes) {
-            val regionName = deckName ?: specialNode.nodeName
+            // Normalize region name: convert hyphens to underscores to match expected format
+            val regionName = (deckName ?: specialNode.nodeName).replace("-", "_")
             val cardNodes = getChildElements(specialNode, "CARD")
             
             for (cardNode in cardNodes) {

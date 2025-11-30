@@ -15,6 +15,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.RelativeLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.core.text.HtmlCompat
 import androidx.fragment.app.Fragment
 import com.poquets.cthulhu.R
@@ -173,12 +174,12 @@ class CardViewFragment : Fragment(), View.OnClickListener {
             null
         }
         
-        // ID
-        val idView = TextView(requireContext())
-        idView.text = card.ID
-        idView.textSize = 16f
-        idView.setTextColor(textColor)
-        mainLayout.addView(idView)
+        // ID - hidden since expansion icons are now displayed at bottom left
+        // val idView = TextView(requireContext())
+        // idView.text = card.ID
+        // idView.textSize = 16f
+        // idView.setTextColor(textColor)
+        // mainLayout.addView(idView)
         
         // Top section
         if (!card.topHeader.isNullOrEmpty()) {
@@ -378,6 +379,31 @@ class CardViewFragment : Fragment(), View.OnClickListener {
     }
     
     /**
+     * Get user-friendly display name for expansion
+     */
+    private fun getExpansionDisplayName(expansionName: String): String {
+        return when (expansionName.uppercase()) {
+            "BASE" -> "Eldritch Horror (Base Game)"
+            "FORSAKEN_LORE" -> "Forsaken Lore"
+            "MOUNTAINS_OF_MADNESS" -> "Mountains of Madness"
+            "ANTARCTICA" -> "Mountains of Madness"
+            "STRANGE_REMNANTS" -> "Strange Remnants"
+            "COSMIC_ALIGNMENT" -> "Strange Remnants"
+            "UNDER_THE_PYRAMIDS" -> "Under the Pyramids"
+            "EGYPT" -> "Under the Pyramids"
+            "LITANY_OF_SECRETS" -> "Under the Pyramids"
+            "SIGNS_OF_CARCOSA" -> "Signs of Carcosa"
+            "THE_DREAMLANDS" -> "The Dreamlands"
+            "DREAMLANDS" -> "The Dreamlands"
+            "CITIES_IN_RUIN" -> "Cities in Ruin"
+            "MASKS_OF_NYARLATHOTEP" -> "Masks of Nyarlathotep"
+            else -> expansionName.replace("_", " ").split(" ").joinToString(" ") { word ->
+                word.lowercase().replaceFirstChar { it.uppercase() }
+            }
+        }
+    }
+    
+    /**
      * Add expansion icon to the bottom left of the card (like Arkham cards)
      */
     private fun addExpansionIcon(frameLayout: FrameLayout) {
@@ -429,8 +455,14 @@ class CardViewFragment : Fragment(), View.OnClickListener {
                             setImageBitmap(iconBitmap)
                             scaleType = ImageView.ScaleType.FIT_CENTER
                             elevation = 20f // High elevation to ensure icon is above content
-                            isClickable = false
-                            isFocusable = false
+                            isClickable = true
+                            isFocusable = true
+                            contentDescription = "Expansion: ${getExpansionDisplayName(expansionName)}"
+                            setOnClickListener {
+                                // Show expansion name when icon is clicked
+                                val displayName = getExpansionDisplayName(expansionName)
+                                Toast.makeText(requireContext(), displayName, Toast.LENGTH_SHORT).show()
+                            }
                             layoutParams = FrameLayout.LayoutParams(
                                 iconSize,
                                 iconSize

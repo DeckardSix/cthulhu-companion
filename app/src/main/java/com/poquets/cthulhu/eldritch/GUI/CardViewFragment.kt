@@ -9,9 +9,11 @@ import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.RelativeLayout
 import android.widget.TextView
 import androidx.core.text.HtmlCompat
 import androidx.fragment.app.Fragment
@@ -178,12 +180,47 @@ class CardViewFragment : Fragment(), View.OnClickListener {
         
         // Top section
         if (!card.topHeader.isNullOrEmpty()) {
+            val topHeaderContainer = RelativeLayout(requireContext())
+            topHeaderContainer.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            
             val topHeaderView = TextView(requireContext())
+            topHeaderView.id = View.generateViewId()
             topHeaderView.text = card.topHeader
             font?.let { topHeaderView.typeface = it }
             topHeaderView.textSize = 36f
             topHeaderView.setTextColor(textColor)
-            mainLayout.addView(topHeaderView)
+            topHeaderView.setPadding(0, 10, 5, 0)
+            val topHeaderParams = RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.WRAP_CONTENT,
+                RelativeLayout.LayoutParams.WRAP_CONTENT
+            )
+            topHeaderView.layoutParams = topHeaderParams
+            topHeaderContainer.addView(topHeaderView)
+            
+            // Add refresh button next to header (same size as Arkham: 48dp)
+            val topRefreshButton = Button(requireContext())
+            topRefreshButton.id = View.generateViewId()
+            topRefreshButton.background = resources.getDrawable(R.drawable.end_right, null)
+            val buttonSize = TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP, 48f, resources.displayMetrics
+            ).toInt()
+            topRefreshButton.layoutParams = RelativeLayout.LayoutParams(buttonSize, buttonSize).apply {
+                addRule(RelativeLayout.CENTER_VERTICAL)
+                addRule(RelativeLayout.RIGHT_OF, topHeaderView.id)
+            }
+            topRefreshButton.gravity = android.view.Gravity.CENTER
+            topRefreshButton.setPadding(0, 0, 10, 0)
+            topRefreshButton.setOnClickListener {
+                if (card.encountered == "NONE") {
+                    DecksAdapter.CARDS?.discardCard(card.region ?: deckName, card.ID, "top")
+                    activity?.finish()
+                }
+            }
+            topHeaderContainer.addView(topRefreshButton)
+            mainLayout.addView(topHeaderContainer)
             
             if (!card.topEncounter.isNullOrEmpty()) {
                 val topEncounterView = TextView(requireContext())
@@ -197,12 +234,47 @@ class CardViewFragment : Fragment(), View.OnClickListener {
         
         // Middle section
         if (!card.middleHeader.isNullOrEmpty()) {
+            val middleHeaderContainer = RelativeLayout(requireContext())
+            middleHeaderContainer.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            
             val middleHeaderView = TextView(requireContext())
+            middleHeaderView.id = View.generateViewId()
             middleHeaderView.text = card.middleHeader
             font?.let { middleHeaderView.typeface = it }
             middleHeaderView.textSize = 36f
             middleHeaderView.setTextColor(textColor)
-            mainLayout.addView(middleHeaderView)
+            middleHeaderView.setPadding(0, 10, 5, 0)
+            val middleHeaderParams = RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.WRAP_CONTENT,
+                RelativeLayout.LayoutParams.WRAP_CONTENT
+            )
+            middleHeaderView.layoutParams = middleHeaderParams
+            middleHeaderContainer.addView(middleHeaderView)
+            
+            // Add refresh button next to header (same size as Arkham: 48dp)
+            val middleRefreshButton = Button(requireContext())
+            middleRefreshButton.id = View.generateViewId()
+            middleRefreshButton.background = resources.getDrawable(R.drawable.end_right, null)
+            val buttonSize = TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP, 48f, resources.displayMetrics
+            ).toInt()
+            middleRefreshButton.layoutParams = RelativeLayout.LayoutParams(buttonSize, buttonSize).apply {
+                addRule(RelativeLayout.CENTER_VERTICAL)
+                addRule(RelativeLayout.RIGHT_OF, middleHeaderView.id)
+            }
+            middleRefreshButton.gravity = android.view.Gravity.CENTER
+            middleRefreshButton.setPadding(0, 0, 10, 0)
+            middleRefreshButton.setOnClickListener {
+                if (card.encountered == "NONE") {
+                    DecksAdapter.CARDS?.discardCard(card.region ?: deckName, card.ID, "middle")
+                    activity?.finish()
+                }
+            }
+            middleHeaderContainer.addView(middleRefreshButton)
+            mainLayout.addView(middleHeaderContainer)
             
             if (!card.middleEncounter.isNullOrEmpty()) {
                 val middleEncounterView = TextView(requireContext())
@@ -216,12 +288,47 @@ class CardViewFragment : Fragment(), View.OnClickListener {
         
         // Bottom section
         if (!card.bottomHeader.isNullOrEmpty()) {
+            val bottomHeaderContainer = RelativeLayout(requireContext())
+            bottomHeaderContainer.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            
             val bottomHeaderView = TextView(requireContext())
+            bottomHeaderView.id = View.generateViewId()
             bottomHeaderView.text = card.bottomHeader
             font?.let { bottomHeaderView.typeface = it }
             bottomHeaderView.textSize = 36f
             bottomHeaderView.setTextColor(textColor)
-            mainLayout.addView(bottomHeaderView)
+            bottomHeaderView.setPadding(0, 10, 5, 0)
+            val bottomHeaderParams = RelativeLayout.LayoutParams(
+                RelativeLayout.LayoutParams.WRAP_CONTENT,
+                RelativeLayout.LayoutParams.WRAP_CONTENT
+            )
+            bottomHeaderView.layoutParams = bottomHeaderParams
+            bottomHeaderContainer.addView(bottomHeaderView)
+            
+            // Add refresh button next to header (same size as Arkham: 48dp)
+            val bottomRefreshButton = Button(requireContext())
+            bottomRefreshButton.id = View.generateViewId()
+            bottomRefreshButton.background = resources.getDrawable(R.drawable.end_right, null)
+            val buttonSize = TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP, 48f, resources.displayMetrics
+            ).toInt()
+            bottomRefreshButton.layoutParams = RelativeLayout.LayoutParams(buttonSize, buttonSize).apply {
+                addRule(RelativeLayout.CENTER_VERTICAL)
+                addRule(RelativeLayout.RIGHT_OF, bottomHeaderView.id)
+            }
+            bottomRefreshButton.gravity = android.view.Gravity.CENTER
+            bottomRefreshButton.setPadding(0, 0, 10, 0)
+            bottomRefreshButton.setOnClickListener {
+                if (card.encountered == "NONE") {
+                    DecksAdapter.CARDS?.discardCard(card.region ?: deckName, card.ID, "bottom")
+                    activity?.finish()
+                }
+            }
+            bottomHeaderContainer.addView(bottomRefreshButton)
+            mainLayout.addView(bottomHeaderContainer)
             
             if (!card.bottomEncounter.isNullOrEmpty()) {
                 val bottomEncounterView = TextView(requireContext())

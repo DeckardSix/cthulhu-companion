@@ -86,5 +86,46 @@ object CardColorUtils {
         val backgroundColor = getDeckBackgroundColor(deckName)
         return getTextColorForBackground(backgroundColor)
     }
+    
+    /**
+     * Get the colored card image path for a specific deck/region
+     * Maps regions to Arkham's colored card backgrounds (yellow, red, green, blue)
+     */
+    fun getColoredCardPath(deckName: String?): String? {
+        if (deckName == null) {
+            return null
+        }
+        
+        // Map regions to colored cards (cycling through the 4 colors)
+        // Using the same colored cards as Arkham:
+        // Yellow: encounter_front_miskatonic.png
+        // Red: encounter_front_uptown.png
+        // Blue: encounter_front_frenchhill.png
+        // Green: encounter_front_merchant.png
+        return when (deckName.uppercase()) {
+            "AMERICAS" -> "encounter/encounter_front_merchant.png"  // Green
+            "EUROPE" -> "encounter/encounter_front_miskatonic.png"  // Yellow
+            "ASIA" -> "encounter/encounter_front_uptown.png"        // Red
+            "AFRICA" -> "encounter/encounter_front_frenchhill.png"  // Blue
+            "EGYPT" -> "encounter/encounter_front_merchant.png"      // Green
+            "DREAMLANDS" -> "encounter/encounter_front_miskatonic.png" // Yellow
+            "ANTARCTICA-WEST", "ANTARCTICA_WEST" -> "encounter/encounter_front_frenchhill.png" // Blue
+            "ANTARCTICA-EAST", "ANTARCTICA_EAST" -> "encounter/encounter_front_uptown.png"     // Red
+            "ANTARCTICA-RESEARCH", "ANTARCTICA_RESEARCH" -> "encounter/encounter_front_merchant.png" // Green
+            "GENERAL" -> "encounter/encounter_front_miskatonic.png"  // Yellow
+            "GATE" -> "encounter/encounter_front_uptown.png"         // Red
+            "RESEARCH" -> "encounter/encounter_front_frenchhill.png" // Blue
+            "SPECIAL-1" -> "encounter/encounter_front_merchant.png"  // Green
+            "SPECIAL-2" -> "encounter/encounter_front_miskatonic.png" // Yellow
+            "SPECIAL-3" -> "encounter/encounter_front_uptown.png"    // Red
+            "DISASTER" -> "encounter/encounter_front_uptown.png"     // Red
+            "DEVASTATION" -> "encounter/encounter_front_uptown.png"  // Red
+            "DISCARD" -> "encounter/encounter_front_downtown.png"   // Default colorless
+            "EXPEDITION" -> "encounter/encounter_front_frenchhill.png" // Blue
+            "MYSTIC_RUINS" -> "encounter/encounter_front_merchant.png" // Green
+            "DREAM-QUEST" -> "encounter/encounter_front_miskatonic.png" // Yellow
+            else -> "encounter/encounter_front_downtown.png"         // Default colorless
+        }
+    }
 }
 

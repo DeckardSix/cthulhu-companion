@@ -1,8 +1,10 @@
 package com.poquets.cthulhu.eldritch.GUI
 
+import android.graphics.BitmapFactory
 import android.graphics.Typeface
 import android.os.Bundle
 import android.text.Spanned
+import android.util.Log
 import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
@@ -11,12 +13,16 @@ import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.core.content.ContextCompat
 import androidx.core.text.HtmlCompat
 import androidx.fragment.app.Fragment
 import com.poquets.cthulhu.R
 import com.poquets.cthulhu.eldritch.CardAdapter
 import com.poquets.cthulhu.eldritch.DecksAdapter
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.IOException
 
 /**
  * Fragment for displaying an individual Eldritch card
@@ -26,6 +32,7 @@ class CardViewFragment : Fragment(), View.OnClickListener {
     
     private lateinit var card: CardAdapter
     private lateinit var deckName: String
+    private val fragmentScope = CoroutineScope(Dispatchers.Main)
     
     companion object {
         fun newInstance(cardAdapter: CardAdapter, deckName: String): CardViewFragment {
@@ -85,17 +92,64 @@ class CardViewFragment : Fragment(), View.OnClickListener {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        // Create a simplified card view
-        // For now, just show basic card information
+        // Create a FrameLayout to layer the colored card background and text content
         val frameLayout = FrameLayout(requireContext())
         frameLayout.layoutParams = ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT
         )
         
-        // Use cthulhu_background like Arkham screens
+        // Set base background to cthulhu_background like Arkham screens
         frameLayout.setBackgroundResource(R.drawable.cthulhu_background)
         val textColor = CardColorUtils.getDeckTextColor(deckName)
+        
+        // Load colored card image asynchronously (like Arkham does)
+        // Use card's region if available, otherwise use deckName
+        val regionForCard = card.region ?: deckName
+        fragmentScope.launch {
+            val cardPath = CardColorUtils.getColoredCardPath(regionForCard)
+            Log.d("CardViewFragment", "Loading colored card for region '$regionForCard' (deck: '$deckName'): $cardPath")
+            
+            if (cardPath != null) {
+                try {
+                    val cardBitmap = withContext(Dispatchers.IO) {
+                        try {
+                            val inputStream = requireContext().assets.open(cardPath)
+                            val bitmap = BitmapFactory.decodeStream(inputStream)
+                            inputStream.close()
+                            bitmap
+                        } catch (e: IOException) {
+                            Log.w("CardViewFragment", "Could not load card image from $cardPath: ${e.message}")
+                            null
+                        }
+                    }
+                    
+                    if (cardBitmap != null) {
+                        Log.d("CardViewFragment", "Loaded card bitmap: ${cardBitmap.width}x${cardBitmap.height}")
+                        withContext(Dispatchers.Main) {
+                            // Display card image behind text content
+                            val cardImageView = ImageView(requireContext()).apply {
+                                setImageBitmap(cardBitmap)
+                                scaleType = ImageView.ScaleType.FIT_XY
+                                layoutParams = FrameLayout.LayoutParams(
+                                    FrameLayout.LayoutParams.MATCH_PARENT,
+                                    FrameLayout.LayoutParams.MATCH_PARENT
+                                )
+                            }
+                            // Insert at position 0 so it's behind the text layout
+                            frameLayout.addView(cardImageView, 0)
+                            Log.d("CardViewFragment", "Added colored card image view")
+                        }
+                    } else {
+                        Log.w("CardViewFragment", "Card bitmap is null for path: $cardPath")
+                    }
+                } catch (e: Exception) {
+                    Log.w("CardViewFragment", "Error loading card image: ${e.message}", e)
+                }
+            } else {
+                Log.d("CardViewFragment", "No colored card path for deck '$deckName', using default background")
+            }
+        }
         
         val mainLayout = LinearLayout(requireContext())
         mainLayout.orientation = LinearLayout.VERTICAL
@@ -104,6 +158,8 @@ class CardViewFragment : Fragment(), View.OnClickListener {
             FrameLayout.LayoutParams.MATCH_PARENT,
             FrameLayout.LayoutParams.MATCH_PARENT
         )
+        // Make background transparent so card image shows through
+        mainLayout.background = null
         
         // Try to load font
         val font = try {

@@ -26,6 +26,14 @@ open class DeckGallery : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_gallery)
         
+        // Add padding at top to account for status bar
+        val rootLayout = findViewById<android.widget.RelativeLayout>(R.id.rootLayout)
+        val statusBarHeight = getStatusBarHeight()
+        rootLayout?.setPadding(0, statusBarHeight, 0, 0)
+        
+        // Add back button positioned like question mark in expansion selector
+        addBackButton()
+        
         supportActionBar?.show()
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         
@@ -168,6 +176,56 @@ open class DeckGallery : AppCompatActivity() {
                 }
             }
         }
+    }
+    
+    private fun addBackButton() {
+        val backButtonFrameLayout: android.widget.FrameLayout? = findViewById(R.id.backButtonFrameLayout)
+        
+        if (backButtonFrameLayout != null) {
+            val paddingPx = 5
+            val iconSize = android.util.TypedValue.applyDimension(
+                android.util.TypedValue.COMPLEX_UNIT_DIP,
+                32f,
+                resources.displayMetrics
+            ).toInt()
+            
+            val backButton = android.widget.ImageView(this).apply {
+                setImageResource(android.R.drawable.ic_menu_revert)
+                contentDescription = "Back"
+                setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+                
+                val totalSize = iconSize + (paddingPx * 2)
+                layoutParams = android.widget.FrameLayout.LayoutParams(totalSize, totalSize).apply {
+                    gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
+                }
+                
+                setColorFilter(0xFFFFFFFF.toInt())
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    finish()
+                }
+            }
+            
+            backButtonFrameLayout.addView(backButton)
+        }
+    }
+    
+    private fun getStatusBarHeight(): Int {
+        var result = 0
+        val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
+        if (resourceId > 0) {
+            result = resources.getDimensionPixelSize(resourceId)
+        }
+        // If we can't get it from resources, use a default value (typically 24dp on modern devices)
+        if (result == 0) {
+            result = android.util.TypedValue.applyDimension(
+                android.util.TypedValue.COMPLEX_UNIT_DIP,
+                24f,
+                resources.displayMetrics
+            ).toInt()
+        }
+        return result
     }
 }
 

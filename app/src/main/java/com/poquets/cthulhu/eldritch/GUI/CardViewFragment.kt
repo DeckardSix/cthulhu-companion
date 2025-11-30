@@ -101,7 +101,8 @@ class CardViewFragment : Fragment(), View.OnClickListener {
         
         // Set base background to cthulhu_background like Arkham screens
         frameLayout.setBackgroundResource(R.drawable.cthulhu_background)
-        val textColor = CardColorUtils.getDeckTextColor(deckName)
+        // Use black text color for better readability on light card backgrounds
+        val textColor = android.graphics.Color.BLACK
         
         // Load colored card image asynchronously (like Arkham does)
         // Use card's region if available, otherwise use deckName

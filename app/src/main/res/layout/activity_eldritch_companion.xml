@@ -1,12 +1,51 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/rootLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/cthulhu_background">
+    
+    <!-- Back button and header icons positioned at top -->
+    <RelativeLayout
+        android:id="@+id/backButtonContainer"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:layout_marginTop="10dp"
+        android:layout_marginBottom="16dp"
+        android:elevation="8dp"
+        android:clickable="true"
+        android:focusable="true">
+        <FrameLayout
+            android:id="@+id/backButtonFrameLayout"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentLeft="true"
+            android:layout_centerVertical="true"
+            android:layout_marginLeft="16dp" />
+        <!-- Question mark icon container -->
+        <FrameLayout
+            android:id="@+id/questionMarkIconFrameLayout"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentRight="true"
+            android:layout_centerVertical="true"
+            android:layout_marginRight="16dp" />
+        <!-- Settings icon container -->
+        <FrameLayout
+            android:id="@+id/settingsIconFrameLayout"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_toLeftOf="@id/questionMarkIconFrameLayout"
+            android:layout_centerVertical="true"
+            android:layout_marginRight="16dp" />
+    </RelativeLayout>
+    
 <ScrollView
     android:id="@+id/mainScrollView"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:layout_below="@id/backButtonContainer"
     android:fitsSystemWindows="true"
     android:paddingLeft="@dimen/activity_horizontal_margin"
     android:paddingRight="@dimen/activity_horizontal_margin"
@@ -20,17 +59,8 @@
         android:orientation="vertical"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
         android:background="@android:color/transparent">
 
-        <!-- Header FrameLayout for question mark and settings icons -->
-        <FrameLayout
-            android:id="@+id/headerIconsFrameLayout"
-            android:layout_width="match_parent"
-            android:layout_height="80dp"
-            android:layout_marginBottom="10dp"
-            android:background="@android:color/transparent">
-        </FrameLayout>
 
         <FrameLayout
             android:layout_width="match_parent"
@@ -500,7 +530,7 @@
                 android:text="Discard"
                 android:onClick="drawCard"/>
         </FrameLayout>
-        </LinearLayout>
-    </ScrollView>
-</FrameLayout>
+    </LinearLayout>
+</ScrollView>
+</RelativeLayout>
 

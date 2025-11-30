@@ -32,6 +32,14 @@ class EldritchCompanion : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_eldritch_companion)
         
+        // Add padding at top to account for status bar
+        val rootLayout = findViewById<android.widget.RelativeLayout>(R.id.rootLayout)
+        val statusBarHeight = getStatusBarHeight()
+        rootLayout?.setPadding(0, statusBarHeight, 0, 0)
+        
+        // Add back button positioned like question mark in expansion selector
+        addBackButton()
+        
         // Ensure ActionBar is properly displayed
         supportActionBar?.show()
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
@@ -343,62 +351,108 @@ class EldritchCompanion : AppCompatActivity() {
     }
     
     private fun addHeaderIcons() {
-        val headerFrameLayout = findViewById<FrameLayout>(R.id.headerIconsFrameLayout)
+        val questionMarkFrameLayout = findViewById<FrameLayout>(R.id.questionMarkIconFrameLayout)
+        val settingsFrameLayout = findViewById<FrameLayout>(R.id.settingsIconFrameLayout)
         
-        if (headerFrameLayout != null) {
-            val iconSize = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP, 32f, resources.displayMetrics
-            ).toInt()
-            val margin = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP, 8f, resources.displayMetrics
-            ).toInt()
-            val spacing = TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP, 4f, resources.displayMetrics
-            ).toInt()
-            
-            // Question mark icon (help/disclaimer)
-            val questionMarkIcon = ImageView(this)
-            questionMarkIcon.setImageResource(android.R.drawable.ic_menu_help)
-            questionMarkIcon.contentDescription = "Show Disclaimer"
-            
-            val questionParams = FrameLayout.LayoutParams(iconSize, iconSize)
-            questionParams.gravity = android.view.Gravity.TOP or android.view.Gravity.END
-            questionParams.setMargins(0, margin, margin, 0)
-            questionMarkIcon.layoutParams = questionParams
-            questionMarkIcon.setColorFilter(0xFFFFFFFF.toInt()) // White
-            questionMarkIcon.isClickable = true
-            questionMarkIcon.isFocusable = true
-            questionMarkIcon.setOnClickListener {
-                DisclaimerHelper.showDisclaimer(
-                    this,
-                    showCheckbox = true,
-                    backgroundResId = R.drawable.bg_test_splash
-                )
+        val iconSize = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP, 32f, resources.displayMetrics
+        ).toInt()
+        val paddingPx = 5
+        
+        // Question mark icon (help/disclaimer)
+        if (questionMarkFrameLayout != null) {
+            val questionMarkIcon = ImageView(this).apply {
+                setImageResource(android.R.drawable.ic_menu_help)
+                contentDescription = "Show Disclaimer"
+                setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+                
+                val totalSize = iconSize + (paddingPx * 2)
+                layoutParams = FrameLayout.LayoutParams(totalSize, totalSize)
+                setColorFilter(0xFFFFFFFF.toInt()) // White
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    DisclaimerHelper.showDisclaimer(
+                        this@EldritchCompanion,
+                        showCheckbox = true,
+                        backgroundResId = R.drawable.bg_test_splash
+                    )
+                }
             }
-            
-            // Settings icon (gear) - link to database management
-            val settingsIcon = ImageView(this)
-            settingsIcon.setImageResource(android.R.drawable.ic_menu_preferences)
-            settingsIcon.contentDescription = "Database Management"
-            
-            val settingsParams = FrameLayout.LayoutParams(iconSize, iconSize)
-            settingsParams.gravity = android.view.Gravity.TOP or android.view.Gravity.END
-            val settingsTopMargin = margin + iconSize + spacing
-            settingsParams.setMargins(0, settingsTopMargin, margin, 0)
-            settingsIcon.layoutParams = settingsParams
-            settingsIcon.setColorFilter(0xFFFFFFFF.toInt()) // White
-            settingsIcon.isClickable = true
-            settingsIcon.isFocusable = true
-            settingsIcon.setOnClickListener {
-                val intent = Intent(this, com.poquets.cthulhu.GUI.DatabaseManagementActivity::class.java)
-                startActivity(intent)
-            }
-            
-            headerFrameLayout.addView(questionMarkIcon)
-            headerFrameLayout.addView(settingsIcon)
-            
-            Log.d("EldritchCompanion", "Header icons added")
+            questionMarkFrameLayout.addView(questionMarkIcon)
         }
+        
+        // Settings icon (gear) - link to database management
+        if (settingsFrameLayout != null) {
+            val settingsIcon = ImageView(this).apply {
+                setImageResource(android.R.drawable.ic_menu_preferences)
+                contentDescription = "Database Management"
+                setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+                
+                val totalSize = iconSize + (paddingPx * 2)
+                layoutParams = FrameLayout.LayoutParams(totalSize, totalSize)
+                setColorFilter(0xFFFFFFFF.toInt()) // White
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    val intent = Intent(this@EldritchCompanion, com.poquets.cthulhu.GUI.DatabaseManagementActivity::class.java)
+                    startActivity(intent)
+                }
+            }
+            settingsFrameLayout.addView(settingsIcon)
+        }
+        
+        Log.d("EldritchCompanion", "Header icons added to top bar")
+    }
+    
+    private fun addBackButton() {
+        val backButtonFrameLayout: FrameLayout? = findViewById(R.id.backButtonFrameLayout)
+        
+        if (backButtonFrameLayout != null) {
+            val paddingPx = 5
+            val iconSize = TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP,
+                32f,
+                resources.displayMetrics
+            ).toInt()
+            
+            val backButton = ImageView(this).apply {
+                setImageResource(android.R.drawable.ic_menu_revert)
+                contentDescription = "Back"
+                setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+                
+                val totalSize = iconSize + (paddingPx * 2)
+                layoutParams = FrameLayout.LayoutParams(totalSize, totalSize).apply {
+                    gravity = android.view.Gravity.START or android.view.Gravity.CENTER_VERTICAL
+                }
+                
+                setColorFilter(0xFFFFFFFF.toInt())
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    finish()
+                }
+            }
+            
+            backButtonFrameLayout.addView(backButton)
+        }
+    }
+    
+    private fun getStatusBarHeight(): Int {
+        var result = 0
+        val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
+        if (resourceId > 0) {
+            result = resources.getDimensionPixelSize(resourceId)
+        }
+        // If we can't get it from resources, use a default value (typically 24dp on modern devices)
+        if (result == 0) {
+            result = TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP,
+                24f,
+                resources.displayMetrics
+            ).toInt()
+        }
+        return result
     }
     
     override fun onCreateOptionsMenu(menu: Menu): Boolean {

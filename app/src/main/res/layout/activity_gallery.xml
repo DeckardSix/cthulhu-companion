@@ -1,18 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout
+<RelativeLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/rootLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/cthulhu_background">
-<LinearLayout
-    android:orientation="vertical"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:layout_marginTop="?attr/actionBarSize">
+    
+    <!-- Back button positioned like question mark in expansion selector -->
+    <RelativeLayout
+        android:id="@+id/backButtonContainer"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:layout_marginTop="10dp"
+        android:elevation="8dp"
+        android:clickable="true"
+        android:focusable="true">
+        <FrameLayout
+            android:id="@+id/backButtonFrameLayout"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentLeft="true"
+            android:layout_centerVertical="true"
+            android:layout_marginLeft="16dp" />
+    </RelativeLayout>
+    
+    <!-- ViewPager for cards - positioned below back button -->
     <androidx.viewpager2.widget.ViewPager2
         android:id="@+id/viewpager"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"/>
-</LinearLayout>
-</FrameLayout>
+        android:layout_height="match_parent"
+        android:layout_below="@id/backButtonContainer"
+        android:padding="0dip" />
+</RelativeLayout>
 

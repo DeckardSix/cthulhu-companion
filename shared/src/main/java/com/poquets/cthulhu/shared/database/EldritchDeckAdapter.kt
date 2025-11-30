@@ -86,12 +86,17 @@ class EldritchDeckAdapter(private val context: Context) {
     
     /**
      * Get mystic ruins location
+     * For MYSTIC_RUINS cards, the location name is stored in topHeader (from the NAME element)
      */
     suspend fun getMysticRuinsLocation(): String = withContext(Dispatchers.IO) {
         val mysticRuinsDeck = deckManager.getDeck("MYSTIC_RUINS")
         return@withContext if (mysticRuinsDeck.isNotEmpty()) {
-            mysticRuinsDeck[0].topHeader ?: mysticRuinsDeck[0].region ?: "EMPTY"
+            // For MYSTIC_RUINS, the location name is in topHeader (e.g., "Stonehenge - London")
+            val location = mysticRuinsDeck[0].topHeader
+            Log.d("EldritchDeckAdapter", "Mystic Ruins location: $location (from topHeader)")
+            location ?: "EMPTY"
         } else {
+            Log.w("EldritchDeckAdapter", "Mystic Ruins deck is empty")
             "EMPTY"
         }
     }
@@ -100,7 +105,7 @@ class EldritchDeckAdapter(private val context: Context) {
      * Get dream quest location
      */
     suspend fun getDreamQuestLocation(): String = withContext(Dispatchers.IO) {
-        val dreamQuestDeck = deckManager.getDeck("DREAM-QUEST")
+        val dreamQuestDeck = deckManager.getDeck("DREAM_QUEST") // Normalized: hyphens to underscores
         return@withContext if (dreamQuestDeck.isNotEmpty()) {
             dreamQuestDeck[0].topHeader ?: dreamQuestDeck[0].region ?: "EMPTY"
         } else {
@@ -132,6 +137,19 @@ class EldritchDeckAdapter(private val context: Context) {
      */
     suspend fun removeFromDiscard(card: UnifiedCard) {
         deckManager.removeFromDiscard(card)
+    }
+    
+    /**
+     * Get SPECIAL card name (topHeader) for button display
+     * Returns the topHeader from the first card in the SPECIAL deck, or null if deck is empty
+     */
+    suspend fun getSpecialCardName(deckName: String): String? = withContext(Dispatchers.IO) {
+        val deck = deckManager.getDeck(deckName)
+        return@withContext if (deck.isNotEmpty()) {
+            deck[0].topHeader
+        } else {
+            null
+        }
     }
 }
 

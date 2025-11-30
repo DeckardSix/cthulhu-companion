@@ -20,6 +20,16 @@ object CardMigration {
     
     /**
      * Migrate cards from Eldritch database
+     * 
+     * Migration priority:
+     * 1. Check if unified database already has cards - if yes, skip migration entirely
+     * 2. Try to migrate from existing Eldritch database (eldritch_cards.db)
+     * 3. Fallback to XML parsing only if no database exists
+     * 
+     * NOTE: XML is ONLY used as a last resort during initial migration.
+     * Once the unified database is populated, it should never use XML again.
+     * Runtime code (DecksAdapter, DeckManager) always uses the database directly.
+     * 
      * @param context Application context
      * @param unifiedDb The unified database helper
      * @param eldritchDbPath Path to existing Eldritch database (optional, will try default location)
@@ -30,9 +40,29 @@ object CardMigration {
         unifiedDb: UnifiedCardDatabaseHelper,
         eldritchDbPath: String? = null
     ): Int {
+        // First check if unified database already has Eldritch cards
+        // If it does, we don't need to migrate from anywhere
+        // BUT: Check if SPECIAL cards exist - if not, we need to re-migrate
+        if (unifiedDb.hasCards(GameType.ELDRITCH)) {
+            val existingCount = unifiedDb.getCardCount(GameType.ELDRITCH)
+            // Check if SPECIAL cards exist
+            val specialCards = unifiedDb.getCardsByGameTypeAndRegion(GameType.ELDRITCH, "SPECIAL_1") +
+                    unifiedDb.getCardsByGameTypeAndRegion(GameType.ELDRITCH, "SPECIAL_2")
+            if (specialCards.isEmpty()) {
+                Log.w(TAG, "Unified database has $existingCount Eldritch cards but NO SPECIAL cards found! This suggests incomplete migration.")
+                Log.w(TAG, "Checking all regions in database...")
+                val allRegions = unifiedDb.getCardsByGameType(GameType.ELDRITCH).groupBy { it.region }
+                val regionNames = allRegions.keys.filterNotNull().sorted()
+                Log.w(TAG, "Available regions: ${regionNames.joinToString()}")
+            } else {
+                Log.d(TAG, "Unified database already contains $existingCount Eldritch cards (including ${specialCards.size} SPECIAL cards), skipping migration")
+                return existingCount
+            }
+        }
+        
         var migratedCount = 0
         try {
-            // Try multiple possible locations
+            // Try multiple possible locations for existing Eldritch database
             val possiblePaths = mutableListOf<String>()
             
             if (eldritchDbPath != null) {
@@ -154,6 +184,16 @@ object CardMigration {
     
     /**
      * Migrate cards from Arkham database
+     * 
+     * Migration priority:
+     * 1. Check if unified database already has cards - if yes, skip migration entirely
+     * 2. Try to migrate from existing Arkham database (ahDB)
+     * 3. Fallback to populating from scratch using ArkhamInit
+     * 
+     * NOTE: XML/Init is ONLY used as a last resort during initial migration.
+     * Once the unified database is populated, it should never use XML/Init again.
+     * Runtime code (AHFlyweightFactoryAdapter, DeckManager) always uses the database directly.
+     * 
      * Note: Arkham has a more complex structure, so we'll need to join tables
      * @param context Application context
      * @param arkhamDbPath Path to existing Arkham database (optional, will try default location)
@@ -164,8 +204,16 @@ object CardMigration {
         unifiedDb: UnifiedCardDatabaseHelper,
         arkhamDbPath: String? = null
     ): Int {
+        // First check if unified database already has Arkham cards
+        // If it does, we don't need to migrate from anywhere
+        if (unifiedDb.hasCards(GameType.ARKHAM)) {
+            val existingCount = unifiedDb.getCardCount(GameType.ARKHAM)
+            Log.d(TAG, "Unified database already contains $existingCount Arkham cards, skipping migration")
+            return existingCount
+        }
+        
         try {
-            // Try multiple possible locations
+            // Try multiple possible locations for existing Arkham database
             val possiblePaths = mutableListOf<String>()
             
             if (arkhamDbPath != null) {
@@ -928,6 +976,10 @@ object CardMigration {
     private fun parseEldritchNamedCard(node: Node, deckName: String, expansionName: String): List<UnifiedCard> {
         val cards = mutableListOf<UnifiedCard>()
         
+        // Normalize region name: convert hyphens to underscores to match expected format
+        // This handles DREAM-QUEST -> DREAM_QUEST, etc.
+        val normalizedDeckName = deckName.replace("-", "_")
+        
         val cardNodes = getChildElements(node, "CARD")
         for (cardNode in cardNodes) {
             val cardId = cardNode.attributes.getNamedItem("id")?.nodeValue ?: continue
@@ -941,7 +993,7 @@ object CardMigration {
                     gameType = GameType.ELDRITCH,
                     cardId = cardId,
                     expansion = expansionName,
-                    region = deckName,
+                    region = normalizedDeckName,
                     topHeader = name,
                     topEncounter = topEncounter,
                     middleHeader = "PASS",
@@ -1043,39 +1095,61 @@ object CardMigration {
     private fun parseEldritchSpecial(node: Node, deckName: String?, expansionName: String): List<UnifiedCard> {
         val cards = mutableListOf<UnifiedCard>()
         
-        val childNodes = getChildElements(node)
-        for (specialNode in childNodes) {
-            // Normalize region name: convert hyphens to underscores to match expected format
-            val regionName = (deckName ?: specialNode.nodeName).replace("-", "_")
-            val cardNodes = getChildElements(specialNode, "CARD")
-            
-            for (cardNode in cardNodes) {
-                val cardId = cardNode.attributes.getNamedItem("id")?.nodeValue ?: continue
-                val topHeader = getNodeText(getChildElement(cardNode, "TOP_HEADER"))
-                val topEncounter = getNodeText(getChildElement(cardNode, "TOP"))
-                val middleHeader = getNodeText(getChildElement(cardNode, "MIDDLE_HEADER"))
-                val middleEncounter = getNodeText(getChildElement(cardNode, "MIDDLE"))
-                val bottomHeader = getNodeText(getChildElement(cardNode, "BOTTOM_HEADER"))
-                val bottomEncounter = getNodeText(getChildElement(cardNode, "BOTTOM"))
+        // SPECIAL structure: <SPECIAL><SYZYGY><SPECIAL-1>...</SPECIAL-1><SPECIAL-2>...</SPECIAL-2></SYZYGY></SPECIAL>
+        // First level: Ancient One nodes (SYZYGY, etc.)
+        val ancientOneNodes = getChildElements(node)
+        for (ancientOneNode in ancientOneNodes) {
+            // Second level: SPECIAL-1, SPECIAL-2, SPECIAL-3 nodes
+            val specialNodes = getChildElements(ancientOneNode)
+            for (specialNode in specialNodes) {
+                // Normalize region name: convert hyphens to underscores to match expected format
+                // SPECIAL-1 -> SPECIAL_1, SPECIAL-2 -> SPECIAL_2
+                val regionName = (deckName ?: specialNode.nodeName).replace("-", "_")
                 
-                cards.add(
-                    UnifiedCard(
-                        gameType = GameType.ELDRITCH,
-                        cardId = cardId,
-                        expansion = expansionName,
-                        region = regionName,
-                        topHeader = topHeader,
-                        topEncounter = topEncounter,
-                        middleHeader = middleHeader,
-                        middleEncounter = middleEncounter,
-                        bottomHeader = bottomHeader,
-                        bottomEncounter = bottomEncounter,
-                        encountered = "NONE"
+                // For SPECIAL cards, the NAME is at the specialNode level, not the card level
+                // Example: <SPECIAL-1><NAME>Fortifying the Barrier</NAME><CARD>...
+                val specialName = getNodeText(getChildElement(specialNode, "NAME"))
+                
+                if (specialName.isNullOrBlank()) {
+                    Log.w(TAG, "SPECIAL card node ${specialNode.nodeName} has no NAME element, skipping")
+                    continue
+                }
+                
+                val cardNodes = getChildElements(specialNode, "CARD")
+                
+                Log.d(TAG, "Parsing SPECIAL cards: region=$regionName, name=$specialName, cards=${cardNodes.size}")
+                
+                for (cardNode in cardNodes) {
+                    val cardId = cardNode.attributes.getNamedItem("id")?.nodeValue ?: continue
+                    // SPECIAL cards don't have TOP_HEADER, MIDDLE_HEADER, BOTTOM_HEADER in the CARD element
+                    // They use the NAME from the parent specialNode as topHeader
+                    val topHeader = specialName // Use the NAME from the specialNode
+                    val topEncounter = getNodeText(getChildElement(cardNode, "TOP"))
+                    val middleHeader = "PASS" // Default for SPECIAL cards
+                    val middleEncounter = getNodeText(getChildElement(cardNode, "MIDDLE"))
+                    val bottomHeader = "FAIL" // Default for SPECIAL cards
+                    val bottomEncounter = getNodeText(getChildElement(cardNode, "BOTTOM"))
+                    
+                    cards.add(
+                        UnifiedCard(
+                            gameType = GameType.ELDRITCH,
+                            cardId = cardId,
+                            expansion = expansionName,
+                            region = regionName,
+                            topHeader = topHeader,
+                            topEncounter = topEncounter,
+                            middleHeader = middleHeader,
+                            middleEncounter = middleEncounter,
+                            bottomHeader = bottomHeader,
+                            bottomEncounter = bottomEncounter,
+                            encountered = "NONE"
+                        )
                     )
-                )
+                }
             }
         }
         
+        Log.d(TAG, "Parsed ${cards.size} SPECIAL cards total")
         return cards
     }
     

@@ -1,7 +1,12 @@
 package com.poquets.cthulhu.eldritch.GUI
 
 import android.content.Intent
+import android.graphics.BitmapFactory
+import android.graphics.drawable.BitmapDrawable
 import android.os.Bundle
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.ImageSpan
 import android.util.Log
 import android.util.TypedValue
 import android.view.Menu
@@ -15,6 +20,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.poquets.cthulhu.R
 import com.poquets.cthulhu.eldritch.Config
 import com.poquets.cthulhu.eldritch.DecksAdapter
+import com.poquets.cthulhu.shared.database.UnifiedCard
 import com.poquets.cthulhu.shared.ui.DisclaimerHelper
 import java.io.File
 
@@ -178,7 +184,7 @@ class EldritchCompanion : AppCompatActivity() {
             hideIfEmpty(R.id.dreamlandsButton, "DREAMLANDS")
             dreamQuestButton?.let { button ->
                 if (decks != null) {
-                    val hasCards = decks.getDeck("DREAM-QUEST").isNotEmpty()
+                    val hasCards = decks.getDeck("DREAM_QUEST").isNotEmpty() // Normalized: hyphens to underscores
                     button.visibility = if (hasCards) View.VISIBLE else View.GONE
                     button.parent?.let { parent ->
                         if (parent is View) {
@@ -213,30 +219,13 @@ class EldritchCompanion : AppCompatActivity() {
             mysticRuinsButton?.parent?.let { if (it is View) it.visibility = View.GONE }
         }
         
-        // Special buttons - only visible if decks exist and have cards
-        if (decks != null && decks.containsDeck("SPECIAL-1") && decks.getDeck("SPECIAL-1").isNotEmpty()) {
-            findViewById<View>(R.id.special1Button)?.visibility = View.VISIBLE
-            findViewById<View>(R.id.special1Button)?.parent?.let { if (it is View) it.visibility = View.VISIBLE }
-        } else {
-            findViewById<View>(R.id.special1Button)?.visibility = View.GONE
-            findViewById<View>(R.id.special1Button)?.parent?.let { if (it is View) it.visibility = View.GONE }
-        }
-        
-        if (decks != null && decks.containsDeck("SPECIAL-2") && decks.getDeck("SPECIAL-2").isNotEmpty()) {
-            findViewById<View>(R.id.special2Button)?.visibility = View.VISIBLE
-            findViewById<View>(R.id.special2Button)?.parent?.let { if (it is View) it.visibility = View.VISIBLE }
-        } else {
-            findViewById<View>(R.id.special2Button)?.visibility = View.GONE
-            findViewById<View>(R.id.special2Button)?.parent?.let { if (it is View) it.visibility = View.GONE }
-        }
-        
-        if (decks != null && decks.containsDeck("SPECIAL-3") && decks.getDeck("SPECIAL-3").isNotEmpty()) {
-            findViewById<View>(R.id.special3Button)?.visibility = View.VISIBLE
-            findViewById<View>(R.id.special3Button)?.parent?.let { if (it is View) it.visibility = View.VISIBLE }
-        } else {
-            findViewById<View>(R.id.special3Button)?.visibility = View.GONE
-            findViewById<View>(R.id.special3Button)?.parent?.let { if (it is View) it.visibility = View.GONE }
-        }
+        // Special buttons - only visible if decks exist and have cards from selected expansions
+        // Note: Deck names are normalized (hyphens to underscores) in the database
+        // So "SPECIAL-1" becomes "SPECIAL_1" in the database
+        // Also filter by expansion to ensure only cards from selected expansions are shown
+        updateSpecialButton(R.id.special1Button, "SPECIAL_1", decks)
+        updateSpecialButton(R.id.special2Button, "SPECIAL_2", decks)
+        updateSpecialButton(R.id.special3Button, "SPECIAL_3", decks)
         
         // Disaster buttons - check expansion AND if they have cards
         if (Config.CITIES_IN_RUIN) {
@@ -262,7 +251,7 @@ class EldritchCompanion : AppCompatActivity() {
             R.id.devastationButton -> "DEVASTATION"
             R.id.disasterButton -> "DISASTER"
             R.id.discardButton -> "DISCARD"
-            R.id.dreamQuestButton -> "DREAM-QUEST"
+            R.id.dreamQuestButton -> "DREAM_QUEST" // Normalized: hyphens to underscores
             R.id.dreamlandsButton -> "DREAMLANDS"
             R.id.egyptButton -> "EGYPT"
             R.id.europeButton -> "EUROPE"
@@ -271,9 +260,9 @@ class EldritchCompanion : AppCompatActivity() {
             R.id.generalButton -> "GENERAL"
             R.id.mysticRuinsButton -> "MYSTIC_RUINS"
             R.id.researchButton -> "RESEARCH"
-            R.id.special1Button -> "SPECIAL-1"
-            R.id.special2Button -> "SPECIAL-2"
-            R.id.special3Button -> "SPECIAL-3"
+            R.id.special1Button -> "SPECIAL_1" // Normalized: hyphens to underscores
+            R.id.special2Button -> "SPECIAL_2" // Normalized: hyphens to underscores
+            R.id.special3Button -> "SPECIAL_3"  // Normalized: hyphens to underscores
             else -> null
         }
         
@@ -435,6 +424,95 @@ class EldritchCompanion : AppCompatActivity() {
             }
             
             backButtonFrameLayout.addView(backButton)
+        }
+    }
+    
+    /**
+     * Update SPECIAL button with expansion icon and card name
+     */
+    private fun updateSpecialButton(buttonId: Int, deckName: String, decks: DecksAdapter?) {
+        val specialDeck = decks?.getDeck(deckName) ?: emptyList()
+        val specialFiltered = specialDeck.filter { card ->
+            val cardExpansion = card.expansion ?: "BASE"
+            Config.getEnabledExpansions().contains(cardExpansion)
+        }
+        
+        val button = findViewById<Button>(buttonId)
+        if (specialFiltered.isNotEmpty() && button != null) {
+            button.visibility = View.VISIBLE
+            val card = specialFiltered[0]
+            val cardName = card.topHeader ?: deckName
+            val expansionName = card.expansion ?: "BASE"
+            
+            // Get expansion icon path
+            val iconPath = getExpansionIconPath(expansionName)
+            if (iconPath != null) {
+                try {
+                    // Load icon from assets
+                    val inputStream = assets.open(iconPath)
+                    val iconBitmap = BitmapFactory.decodeStream(inputStream)
+                    inputStream.close()
+                    
+                    if (iconBitmap != null) {
+                        // Scale icon to appropriate size for button text
+                        val iconSize = TypedValue.applyDimension(
+                            TypedValue.COMPLEX_UNIT_DIP, 24f, resources.displayMetrics
+                        ).toInt()
+                        val scaledIcon = android.graphics.Bitmap.createScaledBitmap(
+                            iconBitmap, iconSize, iconSize, true
+                        )
+                        
+                        // Create ImageSpan with the icon
+                        val drawable = BitmapDrawable(resources, scaledIcon)
+                        drawable.setBounds(0, 0, iconSize, iconSize)
+                        val imageSpan = ImageSpan(drawable, ImageSpan.ALIGN_BASELINE)
+                        
+                        // Create SpannableString with icon + space + text
+                        val spannable = SpannableString("  $cardName")
+                        spannable.setSpan(imageSpan, 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        
+                        button.text = spannable
+                    } else {
+                        // Fallback to text only if icon loading fails
+                        button.text = cardName
+                    }
+                } catch (e: Exception) {
+                    Log.w("EldritchCompanion", "Could not load expansion icon from $iconPath: ${e.message}")
+                    // Fallback to text only
+                    button.text = cardName
+                }
+            } else {
+                // No icon path, just use text
+                button.text = cardName
+            }
+            
+            button.parent?.let { if (it is View) it.visibility = View.VISIBLE }
+        } else {
+            button?.visibility = View.GONE
+            button?.parent?.let { if (it is View) it.visibility = View.GONE }
+        }
+    }
+    
+    /**
+     * Get expansion icon path from expansion name
+     */
+    private fun getExpansionIconPath(expansionName: String): String? {
+        return when (expansionName.uppercase()) {
+            "BASE" -> "checkbox/btn_ba_check_on.png" // Use Arkham base icon for Eldritch base game
+            "FORSAKEN_LORE" -> "expansion/icon_exp_fl.png"
+            "MOUNTAINS_OF_MADNESS" -> "expansion/icon_exp_mom.png"
+            "ANTARCTICA" -> "expansion/icon_exp_mom.png" // Antarctica uses MoM icon
+            "STRANGE_REMNANTS" -> "expansion/icon_exp_sr.png"
+            "COSMIC_ALIGNMENT" -> "expansion/icon_exp_sr.png" // Cosmic Alignment uses SR icon
+            "UNDER_THE_PYRAMIDS" -> "expansion/icon_exp_utp.png"
+            "EGYPT" -> "expansion/icon_exp_utp.png" // Egypt uses UtP icon
+            "LITANY_OF_SECRETS" -> "expansion/icon_exp_utp.png" // Litany uses UtP icon
+            "SIGNS_OF_CARCOSA" -> "expansion/icon_exp_soc.png"
+            "THE_DREAMLANDS" -> "expansion/icon_exp_td.png"
+            "DREAMLANDS" -> "expansion/icon_exp_td.png" // Dreamlands uses TD icon
+            "CITIES_IN_RUIN" -> "expansion/icon_exp_cir.png"
+            "MASKS_OF_NYARLATHOTEP" -> "expansion/icon_exp_mon.png"
+            else -> null
         }
     }
     

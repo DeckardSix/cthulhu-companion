@@ -1,8 +1,11 @@
 package com.poquets.cthulhu.GUI
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.util.TypedValue
 import android.widget.*
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.poquets.cthulhu.R
@@ -11,6 +14,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private data class Data(
     val arkham: Int,
@@ -25,6 +34,15 @@ class DatabaseManagementActivity : AppCompatActivity() {
     private val activityScope = CoroutineScope(Dispatchers.Main)
     private lateinit var statusText: TextView
     private lateinit var progressBar: ProgressBar
+    
+    // Activity result launchers for file picker
+    private val exportFileLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument("application/x-sqlite3")) { uri ->
+        uri?.let { exportDatabaseToUri(it) }
+    }
+    
+    private val importFileLauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { importDatabaseFromUri(it) }
+    }
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -68,6 +86,14 @@ class DatabaseManagementActivity : AppCompatActivity() {
         
         findViewById<Button>(R.id.btnClearDatabase).setOnClickListener {
             showClearDatabaseDialog()
+        }
+        
+        findViewById<Button>(R.id.btnExportDatabase).setOnClickListener {
+            exportDatabase()
+        }
+        
+        findViewById<Button>(R.id.btnImportDatabase).setOnClickListener {
+            importDatabase()
         }
     }
     
@@ -173,7 +199,7 @@ class DatabaseManagementActivity : AppCompatActivity() {
                         val eldritchCount = withContext(Dispatchers.IO) {
                             DatabaseInitializer.importEldritchCards(
                                 this@DatabaseManagementActivity,
-                                forceReinit = false
+                                forceReinit = true  // Force reimport to ensure SPECIAL cards are parsed correctly
                             )
                         }
                         
@@ -392,5 +418,190 @@ class DatabaseManagementActivity : AppCompatActivity() {
             ).toInt()
         }
         return result
+    }
+    
+    /**
+     * Export database to a file chosen by the user
+     */
+    private fun exportDatabase() {
+        try {
+            val db = UnifiedCardDatabaseHelper.getInstance(this)
+            val dbFile = File(db.getDatabasePath())
+            
+            if (!dbFile.exists()) {
+                Toast.makeText(this, "Database file does not exist", Toast.LENGTH_SHORT).show()
+                return
+            }
+            
+            // Create a timestamped filename
+            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+            val filename = "cthulhu_companion_$timestamp.db"
+            
+            // Launch file picker to save the database
+            exportFileLauncher.launch(filename)
+        } catch (e: Exception) {
+            android.util.Log.e("DatabaseManagement", "Error preparing export: ${e.message}", e)
+            Toast.makeText(this, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+    
+    /**
+     * Export database to the selected URI
+     */
+    private fun exportDatabaseToUri(uri: Uri) {
+        activityScope.launch {
+            try {
+                progressBar.visibility = ProgressBar.VISIBLE
+                statusText.text = "Exporting database..."
+                
+                val result = withContext(Dispatchers.IO) {
+                    val db = UnifiedCardDatabaseHelper.getInstance(this@DatabaseManagementActivity)
+                    val sourceFile = File(db.getDatabasePath())
+                    
+                    if (!sourceFile.exists()) {
+                        return@withContext "Database file does not exist"
+                    }
+                    
+                    try {
+                        contentResolver.openOutputStream(uri)?.use { outputStream ->
+                            FileInputStream(sourceFile).use { inputStream ->
+                                inputStream.copyTo(outputStream)
+                            }
+                        }
+                        
+                        val fileSize = sourceFile.length()
+                        val sizeMB = String.format(Locale.US, "%.2f", fileSize / (1024.0 * 1024.0))
+                        "Database exported successfully!\n\nSize: $sizeMB MB\n\nFile saved to your selected location."
+                    } catch (e: Exception) {
+                        android.util.Log.e("DatabaseManagement", "Error writing to URI: ${e.message}", e)
+                        "Error writing file: ${e.message}"
+                    }
+                }
+                
+                Toast.makeText(this@DatabaseManagementActivity, result, Toast.LENGTH_LONG).show()
+                statusText.text = result
+                
+            } catch (e: Exception) {
+                android.util.Log.e("DatabaseManagement", "Error exporting database: ${e.message}", e)
+                Toast.makeText(this@DatabaseManagementActivity, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+                statusText.text = "Error: ${e.message}"
+            } finally {
+                progressBar.visibility = ProgressBar.GONE
+            }
+        }
+    }
+    
+    /**
+     * Import database from a file chosen by the user
+     */
+    private fun importDatabase() {
+        AlertDialog.Builder(this)
+            .setTitle("Import Database")
+            .setMessage("WARNING: This will replace your current database with the imported file. This cannot be undone!\n\nMake sure you have exported your current database first if you want to keep it.")
+            .setPositiveButton("Import") { _, _ ->
+                // Launch file picker to select database file
+                importFileLauncher.launch("*/*")
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+    
+    /**
+     * Import database from the selected URI
+     */
+    private fun importDatabaseFromUri(uri: Uri) {
+        activityScope.launch {
+            try {
+                progressBar.visibility = ProgressBar.VISIBLE
+                statusText.text = "Importing database..."
+                
+                val result = withContext(Dispatchers.IO) {
+                    val db = UnifiedCardDatabaseHelper.getInstance(this@DatabaseManagementActivity)
+                    val dbPath = db.getDatabasePath()
+                    val dbFile = File(dbPath)
+                    
+                    try {
+                        // Get a readable database to ensure connection is open, then close it
+                        val readableDb = db.readableDatabase
+                        readableDb.close()
+                        
+                        // Also close any writable database connections
+                        try {
+                            val writableDb = db.writableDatabase
+                            writableDb.close()
+                        } catch (e: Exception) {
+                            // Ignore if already closed
+                        }
+                        
+                        // Wait a moment to ensure all connections are closed
+                        Thread.sleep(100)
+                        
+                        // Copy the imported file to the database location
+                        contentResolver.openInputStream(uri)?.use { inputStream ->
+                            // Create backup of current database first
+                            if (dbFile.exists()) {
+                                val backupFile = File("${dbPath}.backup")
+                                if (backupFile.exists()) {
+                                    backupFile.delete()
+                                }
+                                dbFile.copyTo(backupFile)
+                            }
+                            
+                            // Write imported database
+                            FileOutputStream(dbFile).use { outputStream ->
+                                inputStream.copyTo(outputStream)
+                            }
+                        } ?: return@withContext "Error: Could not open selected file"
+                        
+                        // Force singleton to reset by clearing instance
+                        // Note: This is a workaround since we can't directly reset the singleton
+                        // The next getInstance() call will create a new instance
+                        
+                        // Get a new database instance to verify
+                        // We need to use reflection or just verify the file exists
+                        val importedFile = File(dbPath)
+                        if (!importedFile.exists()) {
+                            return@withContext "Error: Imported file was not created"
+                        }
+                        
+                        val fileSize = importedFile.length()
+                        val sizeMB = String.format(Locale.US, "%.2f", fileSize / (1024.0 * 1024.0))
+                        
+                        "Database imported successfully!\n\n" +
+                        "File size: $sizeMB MB\n\n" +
+                        "Please restart the app to use the imported database.\n\n" +
+                        "Note: A backup of your previous database was saved as ${dbPath}.backup"
+                        
+                    } catch (e: Exception) {
+                        android.util.Log.e("DatabaseManagement", "Error importing database: ${e.message}", e)
+                        // Try to restore backup if import failed
+                        try {
+                            val backupFile = File("${dbPath}.backup")
+                            if (backupFile.exists() && !dbFile.exists()) {
+                                backupFile.copyTo(dbFile)
+                            }
+                        } catch (ex: Exception) {
+                            android.util.Log.e("DatabaseManagement", "Error restoring backup: ${ex.message}", ex)
+                        }
+                        "Error importing database: ${e.message}\n\nCheck logcat for details."
+                    }
+                }
+                
+                Toast.makeText(this@DatabaseManagementActivity, result, Toast.LENGTH_LONG).show()
+                statusText.text = result
+                
+                // Refresh status after a short delay to allow database to be ready
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    refreshStatus()
+                }, 1000)
+                
+            } catch (e: Exception) {
+                android.util.Log.e("DatabaseManagement", "Error importing database: ${e.message}", e)
+                Toast.makeText(this@DatabaseManagementActivity, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+                statusText.text = "Error: ${e.message}"
+            } finally {
+                progressBar.visibility = ProgressBar.GONE
+            }
+        }
     }
 }

@@ -33,19 +33,45 @@ class DeckManager(private val context: Context, private val gameType: GameType) 
                 decks.clear()
                 discardPile.clear()
                 
+                // Determine which expansions to load
+                // For Eldritch, always include BASE expansion as it's required for core game mechanics
+                val expansionsToLoad = if (expansions.isEmpty()) {
+                    emptyList<String>()
+                } else if (gameType == GameType.ELDRITCH && !expansions.contains("BASE")) {
+                    expansions + "BASE"
+                } else {
+                    expansions
+                }
+                
                 // Load cards based on game type
                 val allCards = if (expansions.isEmpty()) {
                     repository.getCards(gameType)
                 } else {
-                    // For Eldritch, always include BASE expansion as it's required for core game mechanics
-                    val expansionsToLoad = if (gameType == GameType.ELDRITCH && !expansions.contains("BASE")) {
-                        expansions + "BASE"
-                    } else {
-                        expansions
+                    Log.d("DeckManager", "Loading cards for expansions: ${expansionsToLoad.joinToString()}")
+                    val allCards = expansionsToLoad.flatMap { expansion ->
+                        val cards = repository.getCardsByExpansion(gameType, expansion)
+                        Log.d("DeckManager", "Loaded ${cards.size} cards for expansion '$expansion'")
+                        
+                        // Verify all cards are from the correct expansion
+                        val wrongExpansionCards = cards.filter { (it.expansion ?: "BASE") != expansion }
+                        if (wrongExpansionCards.isNotEmpty()) {
+                            val wrongExpansions = wrongExpansionCards.map { it.expansion ?: "BASE" }.distinct()
+                            Log.e("DeckManager", "ERROR: Query for expansion '$expansion' returned ${wrongExpansionCards.size} cards from wrong expansions: ${wrongExpansions.joinToString()}")
+                        }
+                        
+                        // Debug: log region distribution for this expansion
+                        val regionGroups = cards.groupBy { it.region }
+                        regionGroups.forEach { (region, regionCards) ->
+                            Log.d("DeckManager", "  Expansion '$expansion' region '$region': ${regionCards.size} cards")
+                        }
+                        cards
                     }
-                    expansionsToLoad.flatMap { expansion ->
-                        repository.getCardsByExpansion(gameType, expansion)
-                    }
+                    Log.d("DeckManager", "Total cards loaded: ${allCards.size} from ${expansionsToLoad.size} expansions")
+                    
+                    // Final verification: check expansion distribution
+                    val expansionGroups = allCards.groupBy { it.expansion ?: "BASE" }
+                    Log.d("DeckManager", "Cards by expansion: ${expansionGroups.map { "${it.key}=${it.value.size}" }.joinToString()}")
+                    allCards
                 }
                 
                 // Group cards by region (Eldritch) or neighborhood (Arkham)
@@ -55,14 +81,57 @@ class DeckManager(private val context: Context, private val gameType: GameType) 
                         // This handles both old data (ANTARCTICA-WEST) and new data (ANTARCTICA_WEST)
                         val regionGroups = allCards.groupBy { (it.region ?: "UNKNOWN").replace("-", "_") }
                         regionGroups.forEach { (region, cards) ->
-                            val unencountered = cards.filter { it.encountered == "NONE" }.toMutableList()
+                            // Filter to only include cards from selected expansions (if expansions were specified)
+                            val expansionSet = if (expansionsToLoad.isNotEmpty()) {
+                                expansionsToLoad.toSet()
+                            } else {
+                                // If no expansions specified, include all cards (allCards already filtered by repository)
+                                null
+                            }
+                            val filteredCards = if (expansionSet != null) {
+                                cards.filter { card ->
+                                    val cardExpansion = card.expansion ?: "BASE"
+                                    expansionSet.contains(cardExpansion)
+                                }
+                            } else {
+                                cards // No filtering needed if no expansions specified
+                            }
+                            
+                            // Log if we're filtering out cards
+                            if (expansionSet != null) {
+                                val filteredOut = cards.size - filteredCards.size
+                                if (filteredOut > 0) {
+                                    val wrongExpansions = cards.filter { card ->
+                                        val cardExpansion = card.expansion ?: "BASE"
+                                        !expansionSet.contains(cardExpansion)
+                                    }.map { it.expansion }.distinct()
+                                    Log.w("DeckManager", "Region '$region': Filtered out $filteredOut cards from unselected expansions: ${wrongExpansions.joinToString()}")
+                                }
+                            }
+                            
+                            val unencountered = filteredCards.filter { it.encountered == "NONE" }.toMutableList()
                             decks[region] = unencountered
                             Collections.shuffle(decks[region])
+                            
+                            // Log expansion distribution for all regions
+                            val expansionGroups = filteredCards.groupBy { it.expansion ?: "BASE" }
+                            Log.d("DeckManager", "Region '$region': ${unencountered.size} unencountered cards from expansions: ${expansionGroups.map { "${it.key}=${it.value.size}" }.joinToString()}")
+                            
                             if (region.contains("ANTARCTICA", ignoreCase = true)) {
-                                Log.d("DeckManager", "Antarctica deck '$region': ${unencountered.size} unencountered cards out of ${cards.size} total (expansions: ${cards.map { it.expansion }.distinct().joinToString()})")
+                                Log.d("DeckManager", "Antarctica deck '$region': ${unencountered.size} unencountered cards out of ${filteredCards.size} total (expansions: ${expansionGroups.keys.joinToString()})")
                             }
                         }
                         Log.d("DeckManager", "Initialized ${decks.size} Eldritch decks. Regions: ${decks.keys.sorted().joinToString()}")
+                        
+                        // Debug: Check for SPECIAL decks specifically
+                        val specialDecks = decks.keys.filter { it.contains("SPECIAL", ignoreCase = true) }
+                        if (specialDecks.isNotEmpty()) {
+                            specialDecks.forEach { deckName ->
+                                Log.d("DeckManager", "SPECIAL deck '$deckName': ${decks[deckName]?.size ?: 0} cards")
+                            }
+                        } else {
+                            Log.w("DeckManager", "No SPECIAL decks found! Available decks: ${decks.keys.sorted().joinToString()}")
+                        }
                     }
                     GameType.ARKHAM -> {
                         // Group by neighborhood

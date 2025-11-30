@@ -867,73 +867,44 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
         try {
             val db = readableDatabase
             
-            // First, try to find the canonical expansion name from the expansions table
-            // This ensures we use the exact name as stored in the database
-            val expansionNames = mutableListOf<String>()
+            // IMPORTANT: Use the expansion name EXACTLY as provided - no fuzzy matching!
+            // The expansion name should match exactly what's stored in the database.
+            // This prevents matching the wrong expansion (e.g., matching STRANGE_REMNANTS when querying MOUNTAINS_OF_MADNESS)
             
-            // Try exact match first
-            val exactMatchCursor = db.query(
+            // First, verify the expansion exists in the expansions table (for validation)
+            val expansionCheckCursor = db.query(
                 TABLE_EXPANSIONS,
                 arrayOf(COLUMN_EXP_NAME),
                 "$COLUMN_GAME_TYPE = ? AND $COLUMN_EXP_NAME = ?",
                 arrayOf(gameType.value, expansion),
                 null, null, null, "1"
             )
-            exactMatchCursor.use {
+            var expansionExists = false
+            var canonicalName = expansion
+            expansionCheckCursor.use {
                 if (it.moveToFirst()) {
-                    expansionNames.add(it.getString(0))
+                    expansionExists = true
+                    canonicalName = it.getString(0) // Use the exact name from database
                 }
             }
             
-            // If no exact match, try case-insensitive and with underscores/spaces variations
-            if (expansionNames.isEmpty()) {
-                val variations = listOf(
-                    expansion,
-                    expansion.uppercase(),
-                    expansion.lowercase(),
-                    expansion.replace("_", " "),
-                    expansion.replace(" ", "_"),
-                    expansion.replace("_", " ").replaceFirstChar { it.uppercaseChar() }
-                )
-                
-                for (variation in variations.distinct()) {
-                    val variationCursor = db.query(
-                        TABLE_EXPANSIONS,
-                        arrayOf(COLUMN_EXP_NAME),
-                        "$COLUMN_GAME_TYPE = ? AND $COLUMN_EXP_NAME = ?",
-                        arrayOf(gameType.value, variation),
-                        null, null, null, "1"
-                    )
-                    variationCursor.use {
-                        if (it.moveToFirst()) {
-                            val foundName = it.getString(0)
-                            if (!expansionNames.contains(foundName)) {
-                                expansionNames.add(foundName)
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // If still no match in expansions table, use the provided expansion name directly
-            // (cards might have been stored with this name even if not in expansions table)
-            if (expansionNames.isEmpty()) {
-                expansionNames.add(expansion)
-                Log.w(TAG, "Expansion '$expansion' not found in expansions table, querying cards directly")
+            if (!expansionExists) {
+                Log.w(TAG, "Expansion '$expansion' not found in expansions table for gameType=${gameType.value}")
+                // Still query cards directly - they might exist even if not in expansions table
+                // But log a warning so we know there's a mismatch
             } else {
-                Log.d(TAG, "Found canonical expansion name(s): $expansionNames for query: $expansion")
+                Log.d(TAG, "Found expansion '$canonicalName' in expansions table for query: '$expansion'")
             }
             
-            // Query cards matching any of the found expansion names
-            val placeholders = expansionNames.joinToString(",") { "?" }
+            // Query cards using EXACT expansion name match - no variations, no fuzzy matching
             val query = """
                 SELECT * FROM $TABLE_CARDS
                 WHERE $COLUMN_GAME_TYPE = ?
-                AND $COLUMN_EXPANSION IN ($placeholders)
+                AND $COLUMN_EXPANSION = ?
                 ORDER BY $COLUMN_CARD_ID ASC
             """.trimIndent()
             
-            val queryArgs = arrayOf(gameType.value) + expansionNames.toTypedArray()
+            val queryArgs = arrayOf(gameType.value, canonicalName)
             val cursor = db.rawQuery(query, queryArgs)
             
             val cards = mutableListOf<UnifiedCard>()
@@ -944,7 +915,7 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
             }
             
             if (cards.isEmpty()) {
-                Log.w(TAG, "No cards found for gameType=${gameType.value}, expansion=$expansion (searched as: $expansionNames)")
+                Log.w(TAG, "No cards found for gameType=${gameType.value}, expansion='$expansion' (queried as: '$canonicalName')")
                 // Debug: Check what expansions actually exist in the database
                 val debugCursor = db.rawQuery(
                     "SELECT DISTINCT $COLUMN_EXPANSION, COUNT(*) as cnt FROM $TABLE_CARDS WHERE $COLUMN_GAME_TYPE = ? GROUP BY $COLUMN_EXPANSION",
@@ -960,12 +931,33 @@ class UnifiedCardDatabaseHelper private constructor(context: Context) : SQLiteOp
                 }
                 Log.w(TAG, "Available expansions in database: ${expansionCounts.joinToString(", ")}")
             } else {
-                Log.d(TAG, "Found ${cards.size} cards for gameType=${gameType.value}, expansion(s)=$expansionNames")
-                // Debug: Check region distribution for Antarctica-related cards
-                val antarcticaCards = cards.filter { it.region?.contains("ANTARCTICA", ignoreCase = true) == true }
-                if (antarcticaCards.isNotEmpty()) {
-                    val regionGroups = antarcticaCards.groupBy { it.region }
-                    Log.d(TAG, "Antarctica cards found: ${regionGroups.map { "${it.key}=${it.value.size}" }.joinToString()}")
+                Log.d(TAG, "Found ${cards.size} cards for gameType=${gameType.value}, expansion='$expansion' (queried as: '$canonicalName')")
+                // Verify all cards are from the correct expansion
+                val wrongExpansionCards = cards.filter { it.expansion != canonicalName }
+                if (wrongExpansionCards.isNotEmpty()) {
+                    Log.e(TAG, "ERROR: Found ${wrongExpansionCards.size} cards from wrong expansion! Expected '$canonicalName' but found: ${wrongExpansionCards.map { it.expansion }.distinct().joinToString()}")
+                }
+                // Debug: Check region distribution for all cards
+                val regionGroups = cards.groupBy { it.region ?: "NULL" }
+                Log.d(TAG, "Region distribution: ${regionGroups.map { "${it.key}=${it.value.size}" }.joinToString(", ")}")
+                // Debug: Check for specific regions that might be missing
+                val importantRegions = listOf("AMERICAS", "EUROPE", "ASIA", "GENERAL", "MYSTIC_RUINS", "SPECIAL_1", "SPECIAL_2", "SPECIAL-1", "SPECIAL-2", "GATE", "RESEARCH")
+                importantRegions.forEach { region ->
+                    val regionCards = cards.filter { (it.region ?: "").replace("-", "_") == region.replace("-", "_") }
+                    if (regionCards.isNotEmpty()) {
+                        Log.d(TAG, "  Region '$region': ${regionCards.size} cards (from expansions: ${regionCards.map { it.expansion }.distinct().joinToString()})")
+                    } else {
+                        Log.w(TAG, "  Region '$region': 0 cards (MISSING!)")
+                    }
+                }
+                
+                // Also check what SPECIAL regions actually exist in the database
+                val allSpecialRegions = cards.filter { (it.region ?: "").contains("SPECIAL", ignoreCase = true) }
+                if (allSpecialRegions.isNotEmpty()) {
+                    val specialRegionGroups = allSpecialRegions.groupBy { it.region }
+                    Log.d(TAG, "  SPECIAL regions found in query: ${specialRegionGroups.map { "${it.key}=${it.value.size}" }.joinToString()}")
+                } else {
+                    Log.w(TAG, "  No SPECIAL regions found in query results!")
                 }
             }
             

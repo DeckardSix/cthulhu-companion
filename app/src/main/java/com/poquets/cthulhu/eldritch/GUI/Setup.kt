@@ -203,6 +203,9 @@ class Setup : AppCompatActivity() {
         
         // Toggle the current expansion
         setExpansionState(imageView, iconName, newSelected)
+        
+        // Update spinner when expansions change
+        updateSpinner()
     }
     
     private fun setExpansionState(imageView: ImageView, iconName: String, isSelected: Boolean) {
@@ -264,10 +267,13 @@ class Setup : AppCompatActivity() {
     }
     
     private fun setupSpinner() {
-        val ancientOnes = listOf(
-            "Random", "Azathoth", "Cthulhu", "Shub-Niggurath", "Yog-Sothoth",
-            "Rise of the Elder Things", "Nephren-Ka"
-        )
+        updateSpinner()
+    }
+    
+    private fun updateSpinner() {
+        val expansions = getSelectedExpansions()
+        val ancientOnes = getAvailableAncientOnes(expansions).toMutableList()
+        ancientOnes.add(0, "Random")
         
         val adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, ancientOnes) {
             override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
@@ -285,7 +291,21 @@ class Setup : AppCompatActivity() {
             }
         }
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        
+        // Save current selection if it's still valid
+        val currentSelection = if (ancientOneSpinner.selectedItemPosition >= 0 && ancientOneSpinner.selectedItemPosition < ancientOneSpinner.count) {
+            ancientOneSpinner.selectedItem as? String
+        } else null
+        
         ancientOneSpinner.adapter = adapter
+        
+        // Restore selection if it's still available
+        if (currentSelection != null && ancientOnes.contains(currentSelection)) {
+            val index = ancientOnes.indexOf(currentSelection)
+            if (index >= 0) {
+                ancientOneSpinner.setSelection(index)
+            }
+        }
     }
     
     private fun setupButtons() {
@@ -423,15 +443,41 @@ class Setup : AppCompatActivity() {
     }
     
     private fun getAvailableAncientOnes(expansions: List<String>): List<String> {
-        // Base game Ancient Ones
-        val ancientOnes = mutableListOf("Azathoth", "Cthulhu", "Shub-Niggurath", "Yog-Sothoth")
+        val ancientOnes = mutableListOf<String>()
+        
+        // Base game Ancient Ones (always available if BASE is selected)
+        if (expansions.contains("BASE")) {
+            ancientOnes.addAll(listOf("Azathoth", "Cthulhu", "Shub-Niggurath", "Yog-Sothoth"))
+        }
         
         // Expansion-specific Ancient Ones
+        if (expansions.contains("FORSAKEN_LORE")) {
+            ancientOnes.add("Yig")
+        }
         if (expansions.contains("MOUNTAINS_OF_MADNESS")) {
             ancientOnes.add("Rise of the Elder Things")
+            ancientOnes.add("Ithaqua")
+        }
+        if (expansions.contains("STRANGE_REMNANTS")) {
+            ancientOnes.add("Syzygy")
         }
         if (expansions.contains("UNDER_THE_PYRAMIDS")) {
+            ancientOnes.add("Abhoth")
             ancientOnes.add("Nephren-Ka")
+        }
+        if (expansions.contains("SIGNS_OF_CARCOSA")) {
+            ancientOnes.add("Hastur")
+        }
+        if (expansions.contains("THE_DREAMLANDS")) {
+            ancientOnes.add("Hypnos")
+            ancientOnes.add("Atlach-Nacha")
+        }
+        if (expansions.contains("CITIES_IN_RUIN")) {
+            ancientOnes.add("Shudde M'ell")
+        }
+        if (expansions.contains("MASKS_OF_NYARLATHOTEP")) {
+            ancientOnes.add("Nyarlathotep")
+            ancientOnes.add("Antediluvium")
         }
         
         return ancientOnes
